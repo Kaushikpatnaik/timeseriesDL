@@ -68,3 +68,22 @@ class oneDCNN(object):
 
 
 class oneDCNNDilated(object):
+
+    def __init__(self,args):
+        '''
+        class to perform time series classification similar to wavenet paper in terms of using dilated/artorous convs
+        '''
+
+        self.num_layers = args.num_layers
+        self.batch_size = args.batch_size
+        self.num_ip_channels = args.num_ip_channels
+        self.len_ip_sequence = args.len_ip_sequence
+        self.num_ip_classes = args.num_ip_classes
+        self.conv_params = args.conv_params
+
+        # define input and label placeholders
+        self.input_layers = tf.placeholder(tf.float32,[self.batch_size,self.len_ip_sequence,self.num_ip_channels])
+        self.labels = tf.placeholder(tf.float32,[self.batch_size])
+
+        # first layer of dilated convolution and pooling
+        layer1_w = tf.get_variable('layer_1_w',[])
