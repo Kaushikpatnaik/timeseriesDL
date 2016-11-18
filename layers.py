@@ -65,14 +65,32 @@ def artrous_conv1d(value, filters, rate, padding, name=None):
 
         elif rate > 1:
             # determine padding based on padding choice
+            if padding == "SAME":
+                # based on the size of the kernel add zeroes to the image
+                filter_width = tf.shape(filters)[0]
+                overall_pad = filter_width + filter_width*(rate-1)
+                pad_left = overall_pad//2
+                pad_right = overall_pad - pad_left
 
+            else:
+                pad_left = 0
+                pad_right = 0
+
+            # check optimality with the rate provided
+            check_width = pad_left + tf.shape(value) + pad_right
+            pad_right_extra = (rate - check_width % rate) % rate
+            pad_right += pad_right_extra
 
             # reshape value tensor based on type of padding and rate
+            new_value = space_to_batch_1d(value,[pad_left,pad_right],rate)
 
             # perform 1d convolution
+            conv_new_value = tf.nn.conv1d(new_value,filters,stride=1,padding='VALID')
 
             # re-shape the output to output size
+            conv_value = batch_to_space_1d(conv_new_value,[0,pad_right_extra],rate)
 
+            return conv_value
 
         else:
             raise ValueError("Rate must be >= 1")
