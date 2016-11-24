@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 class ucrDataReader(object):
     '''
@@ -65,3 +66,75 @@ class batchGenerator(object):
         old_cursor = self.cursor
         self.cursor = (self.cursor+1)/self.num_batches
         return self.batches[old_cursor]
+
+class backblaze(object):
+
+    def __init__(self,dirloc,args):
+        '''
+        Class to read and load the backblaze 2015 dataset
+        '''
+
+        self.dirloc = dirloc
+        self.args = args
+
+    def _prune_to_model(self):
+        '''
+        Read all the csv files and keep only the model data desired
+        Returns:
+
+        '''
+
+        if os.path.exists(self.dirloc):
+
+            data = pd.DataFrame([])
+            filenamelist = os.listdir(self.dirloc)
+            for filename in filenamelist:
+                if os.path.isfile(os.path.join(self.dirloc,filename)):
+                    t_data = pd.read_csv(os.path.join(self.dirloc,filename))
+                    t_data = t_data[t_data['model']==self.args.drive_model]
+                    data = data.append(t_data)
+
+            return data
+
+        else:
+            raise ValueError("Directory does not exist")
+
+
+    def _mod_data(self):
+        '''
+        Based on the provided arguments select the desired columns and pivot appropriate history for each day
+        Returns:
+
+        '''
+
+        data = self._prune_to_model()
+
+        data = data[[self.args.keep_cols]]
+        data = data.sort_values(['serial_number','date'])
+
+
+
+
+
+
+    def _add_labels(self):
+        '''
+        Based on the provided arguments label the data
+        Returns:
+
+        '''
+        raise NotImplementedError
+
+    def createBatches(self):
+        '''
+        Create batches on labeled data by calling all the previous functions
+        Returns:
+
+        '''
+
+    def next(self):
+        '''
+        Return batches
+        Returns:
+
+        '''
