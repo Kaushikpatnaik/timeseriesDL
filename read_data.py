@@ -46,26 +46,6 @@ class ucrDataReader(object):
 
         return train_data,test_data,train_label,test_label
 
-class batchGenerator(object):
-
-    def __init__(self,data,label,batch_size):
-
-        self.data = data
-        self.label = label
-        self.batch_size = batch_size
-        self.batches = None
-        self.cursor = 0
-        self.num_batches = len(self.label) / self.batch_size
-
-    def createBatches(self,data,label):
-
-        for i in range(self.num_batches):
-            self.batches[i] = (data[i*self.batch_size:(i+1)*self.batch_size],label[i*self.batch_size:(i+1)*(self.batch_size)])
-
-    def next(self):
-        old_cursor = self.cursor
-        self.cursor = (self.cursor+1)/self.num_batches
-        return self.batches[old_cursor]
 
 class backblaze(object):
 
@@ -93,48 +73,98 @@ class backblaze(object):
                     t_data = pd.read_csv(os.path.join(self.dirloc,filename))
                     t_data = t_data[t_data['model']==self.args.drive_model]
                     data = data.append(t_data)
-
             return data
-
         else:
             raise ValueError("Directory does not exist")
 
 
-    def _mod_data(self):
+    def _mod_data(self,data):
         '''
         Based on the provided arguments select the desired columns and pivot appropriate history for each day
         Returns:
 
         '''
 
+        data = data.sort_values(['serial_number','date'])
+        serialList = data['serial_number'].values.tolist()
+
+        res_data = []
+        res_label = []
+        for serial in serialList:
+            t_data = data[data['serial_number']==serial]
+            res_label += t_data['failure'].values.tolist()
+            t_data = t_data.drop(['serial_number','date','model','capacity','failure'],axis=1)
+            row,col = t_data.shape
+            for i in range(self.args.hist,row):
+                res_data.append(t_data.ix[i-self.args.K:i].values.flatten())
+
+        res_data = np.array(res_data)
+        res_label = np.array(res_label)
+
+        # assume failure post last failure date does not happen to simplify calculation
+        for i in range(len(res_label)):
+            r_end = min(len(res_label),i+self.args.pred_window)
+            res_label[i] = sum(res_label[i:r_end])
+
+        return np.hstack((res_data,res_label))
+
+
+    def train_test_split(self,split,r_seed=None):
+        '''
+        Randomly split the
+        Args:
+            split: list containing ratio's of train, val and test splits
+            r_seed: random seed to be initialized
+
+        Returns:
+        returns training, validation and testing sets
+        '''
+
         data = self._prune_to_model()
 
-        data = data[[self.args.keep_cols]]
-        data = data.sort_values(['serial_number','date'])
+        data_serial_label = data[['serial_number','label']].drop_duplicates()
+        data_serial_label = data_serial_label.groupby('serial_number')['label'].sum().reset_index()
+
+        if r_seed == None:
+            r_seed = 42
+
+        np.random.seed(r_seed)
+        idx_perm = np.random.permutation(np.linspace(0,len(data_serial_label)-1,len(data_serial_label)))
+        data_serial_label_perm = data_serial_label.ix[idx_perm]
+
+        train_serial_num = data_serial_label_perm.ix[0:int(split[0]*len(data_serial_label_perm))]
+        val_serial_num = data_serial_label_perm.ix[int(split[0]*len(data_serial_label_perm)):int(split[0]*len(data_serial_label_perm))+int(split[1]*len(data_serial_label_perm))]
+        test_serial_num = data_serial_label_perm.ix[int(split[0]*len(data_serial_label_perm))+int(split[1]*len(data_serial_label_perm)):]
+
+        # count statistics of failures
+        print train_serial_num.groupby('label')['serial_number'].size()
+        print val_serial_num.groupby('label')['serial_number'].size()
+        print test_serial_num.groupby('label')['serial_number'].size()
+
+        train = self._mod_data(data[data['serial_number'].isin(train_serial_num['serial_number'].values.tolist())])
+        val = self._mod_data(data[data['serial_number'].isin(val_serial_num['serial_number'].values.tolist())])
+        test = self._mod_data(data[data['serial_number'].isin(test_serial_num['serial_number'].values.tolist())])
+
+        return train,val,test
 
 
+class batchGenerator(object):
 
+    def __init__(self,data,label,batch_size):
 
+        self.data = data
+        self.label = label
+        self.batch_size = batch_size
+        self.batches = None
+        self.cursor = 0
+        self.num_batches = len(self.label) / self.batch_size
 
+    def createBatches(self,data,label):
 
-    def _add_labels(self):
-        '''
-        Based on the provided arguments label the data
-        Returns:
-
-        '''
-        raise NotImplementedError
-
-    def createBatches(self):
-        '''
-        Create batches on labeled data by calling all the previous functions
-        Returns:
-
-        '''
+        for i in range(self.num_batches):
+            self.batches[i] = (data[i*self.batch_size:(i+1)*self.batch_size],label[i*self.batch_size:(i+1)*(self.batch_size)])
 
     def next(self):
-        '''
-        Return batches
-        Returns:
-
-        '''
+        old_cursor = self.cursor
+        self.cursor = (self.cursor+1)/self.num_batches
+        return self.batches[old_cursor]
