@@ -47,14 +47,13 @@ class ucrDataReader(object):
         return train_data,test_data,train_label,test_label
 
 
-class backblaze(object):
+class blackblazeReader(object):
 
-    def __init__(self,dirloc,args):
+    def __init__(self,args):
         '''
         Class to read and load the backblaze 2015 dataset
         '''
 
-        self.dirloc = dirloc
         self.args = args
 
     def _prune_to_model(self):
@@ -64,13 +63,13 @@ class backblaze(object):
 
         '''
 
-        if os.path.exists(self.dirloc):
+        if os.path.exists(self.args.dirloc):
 
             data = pd.DataFrame([])
-            filenamelist = os.listdir(self.dirloc)
+            filenamelist = os.listdir(self.args.dirloc)
             for filename in filenamelist:
-                if os.path.isfile(os.path.join(self.dirloc,filename)):
-                    t_data = pd.read_csv(os.path.join(self.dirloc,filename))
+                if os.path.isfile(os.path.join(self.args.dirloc,filename)):
+                    t_data = pd.read_csv(os.path.join(self.args.dirloc,filename))
                     t_data = t_data[t_data['model']==self.args.drive_model]
                     data = data.append(t_data)
             return data
@@ -96,7 +95,7 @@ class backblaze(object):
             t_data = t_data.drop(['serial_number','date','model','capacity','failure'],axis=1)
             row,col = t_data.shape
             for i in range(self.args.hist,row):
-                res_data.append(t_data.ix[i-self.args.K:i].values.flatten())
+                res_data.append(t_data.ix[i-self.args.hist:i].values.flatten())
 
         res_data = np.array(res_data)
         res_label = np.array(res_label)
@@ -159,10 +158,12 @@ class batchGenerator(object):
         self.cursor = 0
         self.num_batches = len(self.label) / self.batch_size
 
-    def createBatches(self,data,label):
+    def createBatches(self):
 
         for i in range(self.num_batches):
-            self.batches[i] = (data[i*self.batch_size:(i+1)*self.batch_size],label[i*self.batch_size:(i+1)*(self.batch_size)])
+            self.batches[i] = (self.data[i*self.batch_size:(i+1)*self.batch_size],self.label[i*self.batch_size:(i+1)*(self.batch_size)])
+
+        return self.num_batches
 
     def next(self):
         old_cursor = self.cursor

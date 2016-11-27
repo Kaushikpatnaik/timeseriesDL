@@ -103,12 +103,11 @@ class fullDNNNoHistory(object):
 
         self.batch_size = args.batch_size
         self.ip_channels = args.ip_channels
-        self.num_layers = args.num_layers
+        self.num_layers = len(args.layer_sizes)
         self.op_channels = args.op_channels
-        self.hidden_unit = args.hidden_unit
         self.layer_sizes = args.layer_sizes
         self.mode = args.mode
-        self.learn_rate = args.learn_rate
+        self.learn_rate = args.lr_rate
 
 
     def build_graph(self):
@@ -118,6 +117,9 @@ class fullDNNNoHistory(object):
         if self.mode == 'train':
             self._add_train_nodes()
         self.summaries = tf.merge_all_summaries()
+
+    def assign_lr(self,session,new_lr):
+        session.run(tf.assign(self.learn_rate, new_lr))
 
 
     def _build_model(self,args):
@@ -158,7 +160,7 @@ class fullDNNNoHistory(object):
         softmax_b = tf.get_variable('softmax_b',[self.layer_sizes[-1],self.op_channels],dtype=tf.float32)
         self.output = tf.matmul(softmax_w,final_hidden_layer) + softmax_b
 
-        self.output_prob = tf.nn.softmax(output,name="output_layer")
+        self.output_prob = tf.nn.softmax(self.output,name="output_layer")
 
         tf.scalar_summary(self.output_prob,'op_prob')
 
