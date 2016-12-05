@@ -122,7 +122,7 @@ class fullDNNNoHistory(object):
         session.run(tf.assign(self.learn_rate, new_lr))
 
 
-    def _build_model(self,args):
+    def _build_model(self):
         '''
         Initialize and define the model to be use for computation
         Returns:
@@ -139,7 +139,7 @@ class fullDNNNoHistory(object):
             layer_h = tf.matmul(layer_w,self.input_layer_x) + layer_b
 
         # Iterate over layers size with proper scope to define the higher layers
-        for i in range(1,len(self.num_layers)):
+        for i in range(1,self.num_layers):
 
             curr_layer_size = self.layer_sizes[i]
             prev_layer_size = self.layer_sizes[i-1]
@@ -153,8 +153,8 @@ class fullDNNNoHistory(object):
                 layer_h = tf.matmul(layer_w,prev_layer) + layer_b
 
         # final layer with prediction of class
-        with tf.variable_scope("layer_"+str(len(self.num_layers)-1)):
-        final_hidden_layer = tf.get_variable(layer_h)
+        with tf.variable_scope("layer_"+str(self.num_layers-1)):
+            final_hidden_layer = tf.get_variable(layer_h)
 
         softmax_w = tf.get_variable('softmax_w',[self.layer_sizes[-1],self.op_channels],dtype=tf.float32)
         softmax_b = tf.get_variable('softmax_b',[self.layer_sizes[-1],self.op_channels],dtype=tf.float32)
@@ -214,7 +214,7 @@ class fullDNNWithHistory(object):
         self.summaries = tf.merge_all_summaries()
 
 
-    def _build_model(self,args):
+    def _build_model(self):
         '''
         Initialize and define the model to be use for computation
         Returns:
@@ -246,13 +246,13 @@ class fullDNNWithHistory(object):
 
         # final layer with prediction of class
         with tf.variable_scope("layer_"+str(len(self.num_layers)-1)):
-        final_hidden_layer = tf.get_variable(layer_h)
+            final_hidden_layer = tf.get_variable(layer_h)
 
         softmax_w = tf.get_variable('softmax_w',[self.layer_sizes[-1],self.op_channels],dtype=tf.float32)
         softmax_b = tf.get_variable('softmax_b',[self.layer_sizes[-1],self.op_channels],dtype=tf.float32)
         self.output = tf.matmul(softmax_w,final_hidden_layer) + softmax_b
 
-        self.output_prob = tf.nn.softmax(output,name="output_layer")
+        self.output_prob = tf.nn.softmax(self.output,name="output_layer")
 
         tf.scalar_summary(self.output_prob,'op_prob')
 

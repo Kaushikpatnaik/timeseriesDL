@@ -30,13 +30,17 @@ def run_epoch(session, model, data, args, max_batches):
 
   for i in range(max_batches):
     x, y = data.next()
-    cur_cost, curr_state, _ = session.run([model.cost,model.output_prob,model.train_op],
+    cur_cost, output_prob, _ = session.run([model.cost,model.output_prob,model.train_op],
                 feed_dict={model.input_layer_x: x, model.input_layer_y: y})
     tot_cost += cur_cost
-    state = curr_state
-    iters += args.batch_len
+    iters += args.batch_size
 
-  return np.exp(tot_cost/iters)
+  end_time = time.time()
+
+  print "Runtime of one epoch: "
+  print end_time-start_time
+
+  return tot_cost/iters
 
 def train(args,batch_train):
 
@@ -62,8 +66,8 @@ def train(args,batch_train):
             train_model.assign_lr(session, args.lr_rate * lr_decay)
 
             # run a complete epoch and return appropriate variables
-            train_perplexity = run_epoch(session, train_model, batch_train, args, args.max_batches_train)
-            print 'Epoch %d, Train Perplexity: %.3f' % (i + 1, train_perplexity)
+            train_epoch_cost = run_epoch(session, train_model, batch_train, args, args.max_batches_train)
+            print 'Epoch %d, Train Cost: %.3f' % (i + 1, train_epoch_cost)
 
 def test(args):
 
@@ -72,15 +76,15 @@ def test(args):
 def main():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dirname', type=str, default='./data/tinyshakespeare/input.txt',
+    parser.add_argument('--dirloc', type=str, default='./data/backblaze',
                         help='data location for all data')
     parser.add_argument('--split_ratio', type=list, default=[0.8, 0.1, 0.1],
                         help='split ratio for train, validation and test')
-    parser.add_argument('--batch_size', type=int, default=1, help='batch size for data')
-    parser.add_argument('--batch_len', type=int, default=1, help='number of time steps to unroll')
+    parser.add_argument('--batch_size', type=int, default=64, help='batch size for data')
     parser.add_argument('--layer_sizes', type=list, default=[128,64,32], help='number of hidden units in the cell')
-    parser.add_argument('--num_epochs', type=int, default=50, help='max number of epochs to run the training')
-    parser.add_argument('--lr_rate', type=float, default=2e-5, help='learning rate')
+    parser.add_argument('--op_channels', type= int, default=2, help='number of output classes')
+    parser.add_argument('--num_epochs', type=int, default=5, help='max number of epochs to run the training')
+    parser.add_argument('--lr_rate', type=float, default=1e-02, help='learning rate')
     parser.add_argument('--lr_decay', type=float, default=0.97, help='learning rate decay')
     parser.add_argument('--mode', type=str, default='train', help='train or test')
     parser.add_argument('--drive_model', type=str, default='ST3000DM001', help='drive model for model building')

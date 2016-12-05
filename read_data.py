@@ -68,7 +68,8 @@ class blackblazeReader(object):
             data = pd.DataFrame([])
             filenamelist = os.listdir(self.args.dirloc)
             for filename in filenamelist:
-                if os.path.isfile(os.path.join(self.args.dirloc,filename)):
+                print filename, filename[-3:]
+                if os.path.isfile(os.path.join(self.args.dirloc,filename)) and (filename[-3:]=='csv'):
                     t_data = pd.read_csv(os.path.join(self.args.dirloc,filename))
                     t_data = t_data[t_data['model']==self.args.drive_model]
                     data = data.append(t_data)
@@ -85,7 +86,7 @@ class blackblazeReader(object):
         '''
 
         data = data.sort_values(['serial_number','date'])
-        serialList = data['serial_number'].values.tolist()
+        serialList = data['serial_number'].drop_duplicates().values.tolist()
 
         res_data = []
         res_label = []
@@ -121,8 +122,8 @@ class blackblazeReader(object):
 
         data = self._prune_to_model()
 
-        data_serial_label = data[['serial_number','label']].drop_duplicates()
-        data_serial_label = data_serial_label.groupby('serial_number')['label'].sum().reset_index()
+        data_serial_label = data[['serial_number','failure']].drop_duplicates()
+        data_serial_label = data_serial_label.groupby('serial_number')['failure'].sum().reset_index()
 
         if r_seed == None:
             r_seed = 42
@@ -136,9 +137,12 @@ class blackblazeReader(object):
         test_serial_num = data_serial_label_perm.ix[int(split[0]*len(data_serial_label_perm))+int(split[1]*len(data_serial_label_perm)):]
 
         # count statistics of failures
-        print train_serial_num.groupby('label')['serial_number'].size()
-        print val_serial_num.groupby('label')['serial_number'].size()
-        print test_serial_num.groupby('label')['serial_number'].size()
+        print "Training data statistics on failures and non-failures: "
+        print train_serial_num.groupby('failure')['serial_number'].size()
+        print "Validation data statistics on failures and non-failures: "
+        print val_serial_num.groupby('failure')['serial_number'].size()
+        print "Testing data statistics on failures and non-failures: "
+        print test_serial_num.groupby('failure')['serial_number'].size()
 
         train = self._mod_data(data[data['serial_number'].isin(train_serial_num['serial_number'].values.tolist())])
         val = self._mod_data(data[data['serial_number'].isin(val_serial_num['serial_number'].values.tolist())])
