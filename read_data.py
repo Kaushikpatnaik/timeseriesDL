@@ -92,21 +92,25 @@ class blackblazeReader(object):
         res_label = []
         for serial in serialList:
             t_data = data[data['serial_number']==serial]
-            res_label += t_data['failure'].values.tolist()
-            t_data = t_data.drop(['serial_number','date','model','capacity','failure'],axis=1)
+            t_label = t_data['failure'].values.tolist()
+            t_data = t_data.drop(['serial_number','date','model','capacity_bytes','failure'],axis=1).values
             row,col = t_data.shape
             for i in range(self.args.hist,row):
-                res_data.append(t_data.ix[i-self.args.hist:i].values.flatten())
+                #print t_data[i-self.args.hist:i,:].flatten()
+                res_label.append(t_label[i])
+                res_data.append(t_data[i-self.args.hist:i+1,:].flatten())
 
         res_data = np.array(res_data)
-        res_label = np.array(res_label)
+        res_label = np.array(res_label).reshape(len(res_label),1)
 
         # assume failure post last failure date does not happen to simplify calculation
         for i in range(len(res_label)):
             r_end = min(len(res_label),i+self.args.pred_window)
             res_label[i] = sum(res_label[i:r_end])
 
-        return np.hstack((res_data,res_label))
+        print res_data.shape, res_label.shape
+
+        return np.concatenate((res_data,res_label),axis=1)
 
 
     def train_test_split(self,split,r_seed=None):
@@ -120,21 +124,40 @@ class blackblazeReader(object):
         returns training, validation and testing sets
         '''
 
+        print "Split provided: "
+        print split
+
         data = self._prune_to_model()
 
-        data_serial_label = data[['serial_number','failure']].drop_duplicates()
-        data_serial_label = data_serial_label.groupby('serial_number')['failure'].sum().reset_index()
+        data_serials = data['serial_number'].drop_duplicates()
+
+        print "Overall Failure Statistics: "
+        print data.groupby('failure')['serial_number'].size().reset_index()
+
+        data_serial_label = data.groupby('serial_number')['failure'].sum().reset_index()
+
+        assert(len(data_serials)==len(data_serial_label))
 
         if r_seed == None:
             r_seed = 42
 
         np.random.seed(r_seed)
         idx_perm = np.random.permutation(np.linspace(0,len(data_serial_label)-1,len(data_serial_label)))
-        data_serial_label_perm = data_serial_label.ix[idx_perm]
+        data_serial_label_perm = data_serial_label.ix[idx_perm].reset_index()
 
-        train_serial_num = data_serial_label_perm.ix[0:int(split[0]*len(data_serial_label_perm))]
-        val_serial_num = data_serial_label_perm.ix[int(split[0]*len(data_serial_label_perm)):int(split[0]*len(data_serial_label_perm))+int(split[1]*len(data_serial_label_perm))]
-        test_serial_num = data_serial_label_perm.ix[int(split[0]*len(data_serial_label_perm))+int(split[1]*len(data_serial_label_perm)):]
+        assert(len(data_serial_label)==len(data_serial_label_perm))
+
+        #print "Permuted Serial Indexes: "
+        #print data_serial_label_perm
+
+        print "Checking ranges for split: "
+        print 0, int(split[0]*len(data_serial_label_perm))
+        print int(split[0]*len(data_serial_label_perm)), np.floor((split[0]+split[1])*len(data_serial_label_perm))
+        print np.ceil(sum(split[:2])*len(data_serial_label_perm)), len(data_serial_label_perm)
+
+        train_serial_num = data_serial_label_perm.ix[0:int(np.floor(split[0]*len(data_serial_label_perm)))]
+        val_serial_num = data_serial_label_perm.ix[int(split[0]*len(data_serial_label_perm)):int(np.floor((split[0]+split[1])*len(data_serial_label_perm)))]
+        test_serial_num = data_serial_label_perm.ix[int(np.ceil(sum(split[:2])*len(data_serial_label_perm))):]
 
         # count statistics of failures
         print "Training data statistics on failures and non-failures: "
@@ -143,6 +166,16 @@ class blackblazeReader(object):
         print val_serial_num.groupby('failure')['serial_number'].size()
         print "Testing data statistics on failures and non-failures: "
         print test_serial_num.groupby('failure')['serial_number'].size()
+
+        # check that no serial number exists in both groups
+        print "Do the train and validation sets overlap ?"
+        print sum([int(x==y) for x in train_serial_num['serial_number'].values.tolist() for y in val_serial_num['serial_number'].values.tolist()]) > 0
+
+        print "Do the train and test sets overlap ?"
+        print sum([int(x==y) for x in train_serial_num['serial_number'].values.tolist() for y in test_serial_num['serial_number'].values.tolist()]) > 0
+
+        print "Do the test and validation sets overlap ?"
+        print sum([int(x==y) for x in test_serial_num['serial_number'].values.tolist() for y in val_serial_num['serial_number'].values.tolist()]) > 0
 
         train = self._mod_data(data[data['serial_number'].isin(train_serial_num['serial_number'].values.tolist())])
         val = self._mod_data(data[data['serial_number'].isin(val_serial_num['serial_number'].values.tolist())])

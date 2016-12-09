@@ -8,6 +8,7 @@ import numpy as np
 from models import *
 from read_data import *
 from layers import *
+import cPickle
 
 def run_epoch(session, model, data, args, max_batches):
   '''
@@ -94,10 +95,17 @@ def main():
 
 
     args = parser.parse_args()
+    #backblaze_data = blackblazeReader(args)
+    #train, val, test = backblaze_data.train_test_split(args.split_ratio)
 
-    backblaze_data = blackblazeReader(args)
+    # Saved the train, val and test sets for future work, as they take a lot of time to prepare
+    #cPickle.dump(train, open('./data/backblaze_' + str(args.drive_model) + '_train.pkl','w'))
+    #cPickle.dump(val, open('./data/backblaze_' + str(args.drive_model) + '_val.pkl', 'w'))
+    #cPickle.dump(test, open('./data/backblaze_' + str(args.drive_model) + '_test.pkl', 'w'))
 
-    train, val, test = backblaze_data.train_test_split(args.split_ratio)
+    train = cPickle.load(open('./data/backblaze_' + str(args.drive_model) + '_train.pkl','rb'))
+    val = cPickle.load(open('./data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+    test = cPickle.load(open('./data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
 
     batch_train = batchGenerator(train[:,0:-1],train[:,-1],args.batch_size)
     args.max_batches_train = batch_train.createBatches()
