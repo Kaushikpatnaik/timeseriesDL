@@ -186,23 +186,26 @@ class blackblazeReader(object):
 
 class batchGenerator(object):
 
-    def __init__(self,data,label,batch_size):
+    def __init__(self,data,batch_size):
 
         self.data = data
-        self.label = label
         self.batch_size = batch_size
-        self.batches = None
         self.cursor = 0
-        self.num_batches = len(self.label) / self.batch_size
+        self.num_batches = len(self.data) / self.batch_size
+        self.batches = np.zeros((self.num_batches,self.batch_size, self.data.shape[1]), dtype=np.int32)
 
     def createBatches(self):
 
         for i in range(self.num_batches):
-            self.batches[i] = (self.data[i*self.batch_size:(i+1)*self.batch_size],self.label[i*self.batch_size:(i+1)*(self.batch_size)])
+            self.batches[i] = self.data[i*self.batch_size:(i+1)*self.batch_size,:]
 
+    def get_num_batches(self):
         return self.num_batches
+
+    def get_ip_channels(self):
+        return self.data.shape[1]
 
     def next(self):
         old_cursor = self.cursor
         self.cursor = (self.cursor+1)/self.num_batches
-        return self.batches[old_cursor]
+        return (self.batches[old_cursor,:,0:-1], self.batches[old_cursor,:,-1])

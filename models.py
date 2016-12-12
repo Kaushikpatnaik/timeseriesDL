@@ -107,8 +107,7 @@ class fullDNNNoHistory(object):
         self.op_channels = args.op_channels
         self.layer_sizes = args.layer_sizes
         self.mode = args.mode
-        self.learn_rate = args.lr_rate
-
+        self.init_learn_rate = args.lr_rate
 
     def build_graph(self):
 
@@ -118,10 +117,6 @@ class fullDNNNoHistory(object):
             self._add_train_nodes()
         self.summaries = tf.merge_all_summaries()
 
-    def assign_lr(self,session,new_lr):
-        session.run(tf.assign(self.learn_rate, new_lr))
-
-
     def _build_model(self):
         '''
         Initialize and define the model to be use for computation
@@ -129,14 +124,19 @@ class fullDNNNoHistory(object):
 
         '''
 
-        self.input_layer_x = tf.placeholder(dtype=tf.float32,shape=[self.batch_size,self.ip_channels],name="input_layer_x")
-        self.input_layer_y = tf.placeholder(dtype=tf.float32,shape=[self.batch_size,1],name="'input_layer_y")
+        def build_single_layer(prev_layer,ip_size,op_size):
+            # Build the first layer of weights, build the next ones iteratively
+            layer_w = tf.get_variable('layer_w', [ip_size, op_size], dtype=tf.float32)
+            layer_b = tf.get_variable('layer_b', [op_size], dtype=tf.float32)
+            return tf.matmul(prev_layer, layer_w) + layer_b
 
-        # Build the first layer of weights, build the next ones iteratively
+        self.input_layer_x = tf.placeholder(dtype=tf.float32,shape=[self.batch_size,self.ip_channels],name="input_layer_x")
+        self.input_layer_y = tf.placeholder(dtype=tf.float32,shape=[self.batch_size,1],name="input_layer_y")
+
         with tf.variable_scope("layer_0"):
-            layer_w = tf.get_variable('layer_w', [self.ip_channels,self.layer_sizes[0]],dtype=tf.float32)
-            layer_b = tf.get_variable('layer_b', [self.ip_channels,1],dtype=tf.float32)
-            layer_h = tf.matmul(layer_w,self.input_layer_x) + layer_b
+            prev_layer = build_single_layer(self.input_layer_x,self.ip_channels,self.layer_sizes[0])
+
+        print [x.name for x in tf.get_collection(tf.GraphKeys.VARIABLES,scope='layer_0')]
 
         # Iterate over layers size with proper scope to define the higher layers
         for i in range(1,self.num_layers):
@@ -144,26 +144,16 @@ class fullDNNNoHistory(object):
             curr_layer_size = self.layer_sizes[i]
             prev_layer_size = self.layer_sizes[i-1]
 
-            with tf.variable_scope("layer_"+str(i-1),reuse=True):
-                prev_layer = tf.get_variable(layer_h)
-
             with tf.variable_scope("layer_"+str(i)):
-                layer_w = tf.get_variable('layer_w',[prev_layer_size,curr_layer_size],dtype=tf.float32)
-                layer_b = tf.get_variable('layer_b',[prev_layer_size,1],dtype=tf.float32)
-                layer_h = tf.matmul(layer_w,prev_layer) + layer_b
-
-        # final layer with prediction of class
-        with tf.variable_scope("layer_"+str(self.num_layers-1)):
-            final_hidden_layer = tf.get_variable(layer_h)
+                prev_layer = build_single_layer(prev_layer,prev_layer_size,curr_layer_size)
 
         softmax_w = tf.get_variable('softmax_w',[self.layer_sizes[-1],self.op_channels],dtype=tf.float32)
-        softmax_b = tf.get_variable('softmax_b',[self.layer_sizes[-1],self.op_channels],dtype=tf.float32)
-        self.output = tf.matmul(softmax_w,final_hidden_layer) + softmax_b
+        softmax_b = tf.get_variable('softmax_b',[self.op_channels],dtype=tf.float32)
+        self.output = tf.matmul(prev_layer,softmax_w) + softmax_b
 
         self.output_prob = tf.nn.softmax(self.output,name="output_layer")
 
         tf.scalar_summary(self.output_prob,'op_prob')
-
 
     def _add_train_nodes(self):
         '''
@@ -172,12 +162,10 @@ class fullDNNNoHistory(object):
 
         '''
 
-        self.input_layer_y = tf.placeholder(dtype=tf.float32,shape=[self.batch_size,1],name="'input_layer_y")
-
         self.cost = tf.nn.softmax_cross_entropy_with_logits(self.output,self.input_layer_x)
         tf.scalar_summary(self.cost,"loss")
 
-        self.lrn_rate = tf.constant(self.learn_rate,tf.float32)
+        self.lrn_rate = tf.Variable(self.init_learn_rate,trainable=False,dtype=tf.float32)
         tf.scalar_summary(self.lrn_rate,'learning_rate')
 
         trainable_variables = tf.trainable_variables()
@@ -186,6 +174,8 @@ class fullDNNNoHistory(object):
         optimizer = tf.train.AdamOptimizer(self.lrn_rate)
         self.train_op = optimizer.apply_gradients(zip(grads, trainable_variables))
 
+    def assign_lr(self, session, new_lr):
+        session.run(tf.assign(self.lrn_rate, new_lr))
 
 class fullDNNWithHistory(object):
 

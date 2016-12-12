@@ -59,11 +59,12 @@ def train(args,batch_train):
             else:
                 raise NotImplementedError
 
+        train_model.build_graph()
         tf.initialize_all_variables().run()
 
         for i in range(args.num_epochs):
             # TODO: Add parameter for max_max_epochs
-            lr_decay = args.lr_decay ** max(i - 10.0, 0.0)
+            lr_decay = args.lr_decay ** max(i - 2.0, 0.0)
             train_model.assign_lr(session, args.lr_rate * lr_decay)
 
             # run a complete epoch and return appropriate variables
@@ -103,12 +104,17 @@ def main():
     #cPickle.dump(val, open('./data/backblaze_' + str(args.drive_model) + '_val.pkl', 'w'))
     #cPickle.dump(test, open('./data/backblaze_' + str(args.drive_model) + '_test.pkl', 'w'))
 
-    train = cPickle.load(open('./data/backblaze_' + str(args.drive_model) + '_train.pkl','rb'))
-    val = cPickle.load(open('./data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
-    test = cPickle.load(open('./data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+    train_data = cPickle.load(open('./data/backblaze_' + str(args.drive_model) + '_train.pkl','rb'))
+    val_data = cPickle.load(open('./data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+    test_data = cPickle.load(open('./data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
 
-    batch_train = batchGenerator(train[:,0:-1],train[:,-1],args.batch_size)
-    args.max_batches_train = batch_train.createBatches()
+    print "Training Dataset Shape: "
+    print train_data.shape
+
+    batch_train = batchGenerator(train_data,args.batch_size)
+    batch_train.createBatches()
+    args.max_batches_train = batch_train.get_num_batches()
+    args.ip_channels = batch_train.get_ip_channels()
     train(args,batch_train)
 
 if __name__ == "__main__":
