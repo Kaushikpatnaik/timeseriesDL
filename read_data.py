@@ -104,13 +104,20 @@ class blackblazeReader(object):
         res_label = np.array(res_label).reshape(len(res_label),1)
 
         # assume failure post last failure date does not happen to simplify calculation
+        res_label_final = np.zeros((len(res_label),2))
         for i in range(len(res_label)):
             r_end = min(len(res_label),i+self.args.pred_window)
-            res_label[i] = sum(res_label[i:r_end])
+            t_label = sum(res_label[i:r_end])
+            if t_label == 0:
+                res_label_final[i] = (1,0)
+            else:
+                res_label_final[i] = (0,1)
+        res_label_final = np.array(res_label_final)
 
-        print res_data.shape, res_label.shape
+        print "Feature and Label Shape: "
+        print res_data.shape, res_label_final.shape
 
-        return np.concatenate((res_data,res_label),axis=1)
+        return np.concatenate((res_data,res_label_final),axis=1)
 
 
     def train_test_split(self,split,r_seed=None):
@@ -186,10 +193,11 @@ class blackblazeReader(object):
 
 class batchGenerator(object):
 
-    def __init__(self,data,batch_size):
+    def __init__(self,data,batch_size,op_channels):
 
         self.data = data
         self.batch_size = batch_size
+        self.op_channels = op_channels
         self.cursor = 0
         self.num_batches = len(self.data) / self.batch_size
         self.batches = np.zeros((self.num_batches,self.batch_size, self.data.shape[1]), dtype=np.int32)
@@ -203,9 +211,9 @@ class batchGenerator(object):
         return self.num_batches
 
     def get_ip_channels(self):
-        return self.data.shape[1]
+        return self.data.shape[1]-self.op_channels
 
     def next(self):
         old_cursor = self.cursor
         self.cursor = (self.cursor+1)/self.num_batches
-        return (self.batches[old_cursor,:,0:-1], self.batches[old_cursor,:,-1])
+        return (self.batches[old_cursor,:,0:-self.op_channels], self.batches[old_cursor,:,-self.op_channels:])

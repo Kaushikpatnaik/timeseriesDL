@@ -31,7 +31,9 @@ def run_epoch(session, model, data, args, max_batches):
 
   for i in range(max_batches):
     x, y = data.next()
-    cur_cost, output_prob, _ = session.run([model.cost,model.output_prob,model.train_op],
+    print "Batch shapes: "
+    print x.shape, y.shape
+    summary, cur_cost, output_prob, _ = session.run([model.summaries,model.cost,model.output_prob,model.train_op],
                 feed_dict={model.input_layer_x: x, model.input_layer_y: y})
     tot_cost += cur_cost
     iters += args.batch_size
@@ -111,7 +113,7 @@ def main():
     print "Training Dataset Shape: "
     print train_data.shape
 
-    batch_train = batchGenerator(train_data,args.batch_size)
+    batch_train = batchGenerator(train_data,args.batch_size,args.op_channels)
     batch_train.createBatches()
     args.max_batches_train = batch_train.get_num_batches()
     args.ip_channels = batch_train.get_ip_channels()

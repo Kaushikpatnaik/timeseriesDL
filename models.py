@@ -153,7 +153,7 @@ class fullDNNNoHistory(object):
 
         self.output_prob = tf.nn.softmax(self.output,name="output_layer")
 
-        tf.scalar_summary(self.output_prob,'op_prob')
+        tf.histogram_summary('op_prob',self.output_prob)
 
     def _add_train_nodes(self):
         '''
@@ -162,11 +162,11 @@ class fullDNNNoHistory(object):
 
         '''
 
-        self.cost = tf.nn.softmax_cross_entropy_with_logits(self.output,self.input_layer_x)
-        tf.scalar_summary(self.cost,"loss")
+        self.cost = tf.nn.softmax_cross_entropy_with_logits(self.output,self.input_layer_y)
+        tf.scalar_summary("loss",self.cost)
 
         self.lrn_rate = tf.Variable(self.init_learn_rate,trainable=False,dtype=tf.float32)
-        tf.scalar_summary(self.lrn_rate,'learning_rate')
+        tf.scalar_summary('learning_rate',self.lrn_rate)
 
         trainable_variables = tf.trainable_variables()
         grads = tf.gradients(self.cost, trainable_variables)
@@ -176,6 +176,7 @@ class fullDNNNoHistory(object):
 
     def assign_lr(self, session, new_lr):
         session.run(tf.assign(self.lrn_rate, new_lr))
+
 
 class fullDNNWithHistory(object):
 
@@ -244,7 +245,7 @@ class fullDNNWithHistory(object):
 
         self.output_prob = tf.nn.softmax(self.output,name="output_layer")
 
-        tf.scalar_summary(self.output_prob,'op_prob')
+        tf.histogram_summary('op_prob',self.output_prob)
 
 
     def _add_train_nodes(self):
@@ -257,10 +258,10 @@ class fullDNNWithHistory(object):
         self.input_layer_y = tf.placeholder(dtype=tf.float32,shape=[self.batch_size,1],name="'input_layer_y")
 
         self.cost = tf.nn.softmax_cross_entropy_with_logits(self.output,self.input_layer_x)
-        tf.scalar_summary(self.cost,"loss")
+        tf.scalar_summary("loss",self.cost)
 
         self.lrn_rate = tf.constant(self.learn_rate,tf.float32)
-        tf.scalar_summary(self.lrn_rate,'learning_rate')
+        tf.scalar_summary('learning_rate',self.lrn_rate)
 
         trainable_variables = tf.trainable_variables()
         grads = tf.gradients(self.cost, trainable_variables)
