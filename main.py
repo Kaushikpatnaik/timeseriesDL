@@ -24,6 +24,8 @@ def run_epoch(session, model, data, args, max_batches,sess_summary):
     summary, cur_cost, output_prob, _ = session.run([model.summaries,model.cost,model.output_prob,model.train_op],
                 feed_dict={model.input_layer_x: x, model.input_layer_y: y})
     sess_summary.add_summary(summary,i)
+    print "Batch Cross Entropy Loss: "
+    print cur_cost/args.batch_size
     iters += args.batch_size
 
   end_time = time.time()
