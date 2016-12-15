@@ -8,11 +8,11 @@ class ucrDataReader(object):
     UCR time series has only one channel
     '''
 
-    def __init__(self,raw_data,train_test_split,batch_size):
+    def __init__(self,raw_data,train_test_split,op_classes):
 
         self.raw_data = raw_data
-        self.batch_size = batch_size
         self.train_test_split = train_test_split
+        self.op_classes = op_classes
 
 
     def _preProcess(self):
@@ -26,7 +26,7 @@ class ucrDataReader(object):
             data.append(words[1:])
             y.append(words[0])
 
-        return np.array(data), np.array(y)
+        return np.array(data), np.array(y).reshape(len(y),1)
 
 
     def trainTestSplit(self):
@@ -35,16 +35,26 @@ class ucrDataReader(object):
         data, label = self._preProcess()
 
         #randomly shuffle the data
-        new_index = np.random.shuffle(np.arange(len(label)))
-        data = data[new_index]
-        label = label[new_index]
+        new_index = np.random.permutation(len(label))
+        data_shuff = data[new_index,:]
+        label_shuff = label[new_index,:]
 
-        train_data = data[:int(len(data)*self.train_test_split)]
-        train_label = label[:int(len(data)*self.train_test_split)]
-        test_data = data[int(len(data)*self.train_test_split):]
-        test_label = label[int(len(data)*self.train_test_split):]
+        label_onehot = np.zeros((len(label),self.op_classes))
+        for i in range(len(label)):
+            label_onehot[i][label[i]-1] = 1
 
-        return train_data,test_data,train_label,test_label
+        train_data = data[:int(len(data)*self.train_test_split),:]
+        train_label = label_onehot[:int(len(data)*self.train_test_split),:]
+        test_data = data[int(len(data)*self.train_test_split):,:]
+        test_label = label_onehot[int(len(data)*self.train_test_split):,:]
+
+        print "Train data and label shape: "
+        print train_data.shape, train_label.shape
+
+        train = np.concatenate((train_data,train_label),axis=1)
+        test = np.concatenate((test_data,test_label),axis=1)
+
+        return train, test
 
 
 class blackblazeReader(object):
@@ -199,7 +209,7 @@ class batchGenerator(object):
         self.batch_size = batch_size
         self.op_channels = op_channels
         self.cursor = 0
-        self.num_batches = len(self.data) / self.batch_size
+        self.num_batches = int(len(self.data) / self.batch_size)
         self.batches = np.zeros((self.num_batches,self.batch_size, self.data.shape[1]), dtype=np.int32)
 
     def createBatches(self):
