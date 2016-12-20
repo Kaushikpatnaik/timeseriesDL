@@ -150,8 +150,9 @@ class fullDNNNoHistory(object):
         softmax_w = tf.get_variable('softmax_w',[self.layer_sizes[-1],self.op_channels],dtype=tf.float32)
         softmax_b = tf.get_variable('softmax_b',[self.op_channels],dtype=tf.float32)
         self.output = tf.matmul(prev_layer,softmax_w) + softmax_b
+        self.output_prob = tf.nn.softmax(self.output)
 
-        tf.histogram_summary('op_prob',self.output)
+        tf.histogram_summary('op_prob',self.output_prob)
 
     def _add_train_nodes(self):
         '''

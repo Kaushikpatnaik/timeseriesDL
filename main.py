@@ -10,7 +10,7 @@ from read_data import *
 from layers import *
 import cPickle
 
-def run_epoch(session, model, data, args, max_batches,sess_summary):
+def run_train_epoch(session, model, data, args, max_batches,sess_summary):
   '''
   Run the model under given session for max_batches based on args
   '''
@@ -21,12 +21,30 @@ def run_epoch(session, model, data, args, max_batches,sess_summary):
 
   for i in range(max_batches):
     x, y = data.next()
-    summary, cur_cost, output, _ = session.run([model.summaries,model.cost,model.output,model.train_op],
+    summary, cur_cost, output_prob, _ = session.run([model.summaries,model.cost,model.output_prob,model.train_op],
                 feed_dict={model.input_layer_x: x, model.input_layer_y: y})
     sess_summary.add_summary(summary,i)
     print "Batch Cross Entropy Loss: "
     print float(cur_cost)/args.batch_size
     iters += args.batch_size
+
+  end_time = time.time()
+
+  print "Runtime of one epoch: "
+  print end_time-start_time
+
+def run_val_test_epoch(session, model, data, args, max_batches,sess_summary):
+  '''
+  Run the model under given session for max_batches based on args
+  '''
+
+  start_time = time.time()
+
+  for i in range(max_batches):
+    x, y = data.next()
+    summary, output_prob = session.run([model.summaries,model.output_prob],
+                feed_dict={model.input_layer_x: x, model.input_layer_y: y})
+    sess_summary.add_summary(summary,i)
 
   end_time = time.time()
 
@@ -53,6 +71,7 @@ def train(args,batch_train):
             tf.initialize_all_variables().run()
 
             train_writer = tf.train.SummaryWriter(args.logdir+'/train',session.graph)
+            saver = tf.train.Saver()
 
             for i in range(args.num_epochs):
                 # TODO: Add parameter for max_max_epochs
@@ -60,16 +79,20 @@ def train(args,batch_train):
                 train_model.assign_lr(session, args.lr_rate * lr_decay)
 
                 # run a complete epoch and return appropriate variables
-                run_epoch(session, train_model, batch_train, args, args.max_batches_train,train_writer)
+                run_train_epoch(session, train_model, batch_train, args, args.max_batches_train,train_writer)
+
+                if i%5 ==0:
+                    saver.save(session,'./logs/train/train-model-iter',global_step=i)
+
+            saver.save(session,'./logs/train/final-model')
 
             train_writer.close()
 
-def val(args,batch_val,train_model):
+def val(args,batch_val):
 
     with tf.Graph().as_default(), tf.Session() as session:
-        initializer = tf.random_uniform_initializer(-0.1,0.1)
 
-        with tf.variable_scope("model", reuse=True, initializer=initializer):
+        with tf.variable_scope("model"):
 
             args.mode = "Val"
             if args.model_opt == 'fullDNNNoHistory':
@@ -80,22 +103,16 @@ def val(args,batch_val,train_model):
                 raise NotImplementedError
 
             val_model.build_graph()
-            tf.initialize_all_variables().run()
-
             val_writer = tf.train.SummaryWriter(args.logdir+'/val',session.graph)
+            restore_var = tf.train.Saver()
+            restore_var.restore(session, './logs/train/final-model')
 
             for i in range(args.num_epochs):
 
                 # run a complete epoch and return appropriate variables
-                run_epoch(session, train_model, batch_train, args, args.max_batches_train,train_writer)
+                run_val_test_epoch(session, val_model, batch_val, args, args.max_batches_train,val_writer)
 
-            train_writer.close()
-
-
-
-def test(args):
-
-    raise NotImplementedError
+            val_writer.close()
 
 def main():
 
@@ -143,13 +160,15 @@ def main():
     batch_train.createBatches()
     args.max_batches_train = batch_train.get_num_batches()
     args.ip_channels = batch_train.get_ip_channels()
+
+    # train and return the saved trainable parameters of the model
     train(args,batch_train)
 
     # Validation section
     print "Validation DataSet Shape: "
     print val_data.shape
 
-    batch_val = batchGenerator(val_data,1,args.op_channels)
+    batch_val = batchGenerator(val_data,64,args.op_channels)
     batch_val.createBatches()
     args.max_batches_train = batch_val.get_num_batches()
     args.ip_channels = batch_val.get_ip_channels()
