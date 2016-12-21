@@ -131,7 +131,6 @@ class fullDNNNoHistory(object):
             return tf.matmul(prev_layer, layer_w) + layer_b
 
         self.input_layer_x = tf.placeholder(dtype=tf.float32,shape=[self.batch_size,self.ip_channels],name="input_layer_x")
-        self.input_layer_y = tf.placeholder(dtype=tf.float32,shape=[self.batch_size,self.op_channels],name="input_layer_y")
 
         with tf.variable_scope("layer_0"):
             prev_layer = build_single_layer(self.input_layer_x,self.ip_channels,self.layer_sizes[0])
@@ -160,6 +159,7 @@ class fullDNNNoHistory(object):
         Returns:
 
         '''
+        self.input_layer_y = tf.placeholder(dtype=tf.float32,shape=[self.batch_size,self.op_channels],name="input_layer_y")
 
         self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.output,self.input_layer_y))
         tf.scalar_summary("loss",self.cost/self.batch_size)

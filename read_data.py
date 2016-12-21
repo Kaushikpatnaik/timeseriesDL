@@ -223,7 +223,11 @@ class batchGenerator(object):
     def get_ip_channels(self):
         return self.data.shape[1]-self.op_channels
 
+    def get_data_size(self):
+        return self.data.shape
+
     def next(self):
-        old_cursor = self.cursor
-        self.cursor = (self.cursor+1)/self.num_batches
-        return (self.batches[old_cursor,:,0:-self.op_channels], self.batches[old_cursor,:,-self.op_channels:])
+        x = self.batches[self.cursor,:,0:-self.op_channels]
+        y = self.batches[self.cursor,:,-self.op_channels:]
+        self.cursor = (self.cursor+1)%self.num_batches
+        return x,y
