@@ -35,6 +35,7 @@ class ucrDataReader(object):
         data, label = self._preProcess()
 
         #randomly shuffle the data
+        np.random.seed(42)
         new_index = np.random.permutation(len(label))
         data_shuff = data[new_index,:]
         label_shuff = label[new_index,:]
@@ -43,18 +44,26 @@ class ucrDataReader(object):
         for i in range(len(label)):
             label_onehot[i][label[i]-1] = 1
 
-        train_data = data[:int(len(data)*self.train_test_split),:]
-        train_label = label_onehot[:int(len(data)*self.train_test_split),:]
-        test_data = data[int(len(data)*self.train_test_split):,:]
-        test_label = label_onehot[int(len(data)*self.train_test_split):,:]
+        train_data = data[:int(len(data)*self.train_test_split[0]),:]
+        train_label = label_onehot[:int(len(data)*self.train_test_split[0]),:]
 
-        print "Train data and label shape: "
-        print train_data.shape, train_label.shape
+        val_data = data[int(len(data)*self.train_test_split[0]):int(len(data)*self.train_test_split[1]),:]
+        val_label = label_onehot[int(len(data)*self.train_test_split[0]):int(len(data)*self.train_test_split[1]),:]
+
+        test_data = data[int(len(data)*self.train_test_split[1]):,:]
+        test_label = label_onehot[int(len(data)*self.train_test_split[1]):,:]
+
+        print "Train, Val, Test data shape: "
+        print train_data.shape, val_data.shape, test_data.shape
+
+        print "Train, Val, Test label shape: "
+        print train_label.shape, val_label.shape, test_label.shape
 
         train = np.concatenate((train_data,train_label),axis=1)
+        val = np.concatenate((val_data,val_label),axis=1)
         test = np.concatenate((test_data,test_label),axis=1)
 
-        return train, test
+        return train, val, test
 
 
 class blackblazeReader(object):
@@ -210,12 +219,6 @@ class batchGenerator(object):
         self.op_channels = op_channels
         self.cursor = 0
         self.num_batches = int(len(self.data) / self.batch_size)
-        self.batches = np.zeros((self.num_batches,self.batch_size, self.data.shape[1]), dtype=np.int32)
-
-    def createBatches(self):
-
-        for i in range(self.num_batches):
-            self.batches[i] = self.data[i*self.batch_size:(i+1)*self.batch_size,:]
 
     def get_num_batches(self):
         return self.num_batches
@@ -227,7 +230,12 @@ class batchGenerator(object):
         return self.data.shape
 
     def next(self):
-        x = self.batches[self.cursor,:,0:-self.op_channels]
-        y = self.batches[self.cursor,:,-self.op_channels:]
+        temp = self.data[self.cursor*self.batch_size:(self.cursor+1)*self.batch_size,:]
+        x = temp[:,0:-self.op_channels]
+        y = temp[:,-self.op_channels:]
+
+        if self.cursor + 1 > self.num_batches:
+            self.data = np.random.permutation(self.data)
         self.cursor = (self.cursor+1)%self.num_batches
+
         return x,y

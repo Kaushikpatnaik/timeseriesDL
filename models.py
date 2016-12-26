@@ -5,6 +5,19 @@ Using the resnet implementation by Google to be an inspiration for the code
 import tensorflow as tf
 import numpy as np
 import pandas as pd
+from layers import *
+
+
+def _activation_summary(var):
+    with tf.name_scope('summary'):
+        tensor_name = var.op.name
+        mean = tf.reduce_mean(var)
+        tf.scalar_summary(tensor_name+'mean',mean)
+        std = tf.sqrt(tf.reduce_mean(tf.square(var-mean)))
+        tf.scalar_summary(tensor_name+'std',std)
+        tf.scalar_summary(tensor_name+'min',tf.reduce_min(var))
+        tf.scalar_summary(tensor_name+'max',tf.reduce_max(var))
+        tf.histogram_summary(tensor_name+'histogram',var)
 
 
 class oneDCNN(object):
@@ -101,7 +114,6 @@ class fullDNNNoHistory(object):
 
         '''
 
-        self.batch_size = args.batch_size
         self.ip_channels = args.ip_channels
         self.num_layers = len(args.layer_sizes)
         self.op_channels = args.op_channels
@@ -117,6 +129,21 @@ class fullDNNNoHistory(object):
             self._add_train_nodes()
         self.summaries = tf.merge_all_summaries()
 
+    def build_single_layer(self,prev_layer, ip_size, op_size):
+
+        # TODO: pass mean and std dev of initialization as parameters
+        # TODO: pass regularization constanst as parameter
+        # Build the first layer of weights, build the next ones iteratively
+        layer_w = tf.get_variable('layer_w', [ip_size, op_size], dtype=tf.float32,
+                                  initializer=tf.truncated_normal_initializer(0,0.001),
+                                  regularizer=tf.contrib.layers.l2_regularizer(0.1))
+        layer_b = tf.get_variable('layer_b', [op_size], dtype=tf.float32,
+                                  initializer= tf.truncated_normal_initializer(0,0.001))
+        local = tf.nn.relu(tf.matmul(prev_layer, layer_w) + layer_b)
+        _activation_summary(local)
+
+        return local
+
     def _build_model(self):
         '''
         Initialize and define the model to be use for computation
@@ -124,17 +151,10 @@ class fullDNNNoHistory(object):
 
         '''
 
-        def build_single_layer(prev_layer,ip_size,op_size):
-            # Build the first layer of weights, build the next ones iteratively
-            layer_w = tf.get_variable('layer_w', [ip_size, op_size], dtype=tf.float32, regularizer=tf.contrib.layers.l2_regularizer(0.1))
-            layer_b = tf.get_variable('layer_b', [op_size], dtype=tf.float32)
-            local = tf.nn.relu(tf.matmul(prev_layer, layer_w) + layer_b)
-            return local
-
-        self.input_layer_x = tf.placeholder(dtype=tf.float32,shape=[self.batch_size,self.ip_channels],name="input_layer_x")
+        self.input_layer_x = tf.placeholder(dtype=tf.float32,shape=[None,self.ip_channels],name="input_layer_x")
 
         with tf.variable_scope("layer_0"):
-            prev_layer = build_single_layer(self.input_layer_x,self.ip_channels,self.layer_sizes[0])
+            prev_layer = self.build_single_layer(self.input_layer_x,self.ip_channels,self.layer_sizes[0])
 
         print [x.name for x in tf.get_collection(tf.GraphKeys.VARIABLES,scope='layer_0')]
 
@@ -145,14 +165,14 @@ class fullDNNNoHistory(object):
             prev_layer_size = self.layer_sizes[i-1]
 
             with tf.variable_scope("layer_"+str(i)):
-                prev_layer = build_single_layer(prev_layer,prev_layer_size,curr_layer_size)
+                prev_layer = self.build_single_layer(prev_layer,prev_layer_size,curr_layer_size)
 
         softmax_w = tf.get_variable('softmax_w',[self.layer_sizes[-1],self.op_channels],dtype=tf.float32, regularizer=tf.contrib.layers.l2_regularizer(0.1))
         softmax_b = tf.get_variable('softmax_b',[self.op_channels],dtype=tf.float32)
         self.output = tf.matmul(prev_layer,softmax_w) + softmax_b
         self.output_prob = tf.nn.softmax(self.output)
+        _activation_summary(self.output_prob)
 
-        tf.histogram_summary('op_prob',self.output_prob)
 
     def _add_train_nodes(self):
         '''
@@ -160,7 +180,7 @@ class fullDNNNoHistory(object):
         Returns:
 
         '''
-        self.input_layer_y = tf.placeholder(dtype=tf.float32,shape=[self.batch_size,self.op_channels],name="input_layer_y")
+        self.input_layer_y = tf.placeholder(dtype=tf.float32,shape=[None,self.op_channels],name="input_layer_y")
 
         # gather loss from regularization variables
         reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
@@ -173,10 +193,17 @@ class fullDNNNoHistory(object):
         tf.scalar_summary('learning_rate',self.lrn_rate)
 
         trainable_variables = tf.trainable_variables()
-        grads = tf.gradients(self.cost, trainable_variables)
-
         optimizer = tf.train.AdamOptimizer(self.lrn_rate)
-        self.train_op = optimizer.apply_gradients(zip(grads, trainable_variables))
+        grads_vars = optimizer.compute_gradients(self.cost,trainable_variables)
+
+        # histogram_summaries for weights and gradients
+        for var in tf.trainable_variables():
+            tf.histogram_summary(var.op.name, var)
+        for grad, var in grads_vars:
+            if grad is not None:
+                tf.histogram_summary(var.op.name+'/gradient',grad)
+
+        self.train_op = optimizer.apply_gradients(grads_vars)
 
     def assign_lr(self, session, new_lr):
         session.run(tf.assign(self.lrn_rate, new_lr))
@@ -191,11 +218,6 @@ class fullDNNWithHistory(object):
         '''
 
         raise NotImplementedError
-
-
-from layers import *
-from tensorflow.python.ops import math_ops
-import tensorflow as tf
 
 def sequence_loss_by_example(logits, targets, weights, average_across_time=True, scope=None):
   '''

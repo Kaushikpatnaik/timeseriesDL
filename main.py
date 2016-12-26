@@ -12,39 +12,57 @@ from train_eval import *
 from tensorflow.examples.tutorials.mnist import input_data
 
 def get_data_obj(args):
-    # backblaze_data = blackblazeReader(args)
-    # train, val, test = backblaze_data.train_test_split(args.split_ratio)
 
-    # Saved the train, val and test sets for future work, as they take a lot of time to prepare
-    # cPickle.dump(train, open('./data/backblaze_' + str(args.drive_model) + '_train.pkl','w'))
-    # cPickle.dump(val, open('./data/backblaze_' + str(args.drive_model) + '_val.pkl', 'w'))
-    # cPickle.dump(test, open('./data/backblaze_' + str(args.drive_model) + '_test.pkl', 'w'))
+    # TODO: determine the dataset num classes automatically
+    if args.dataset == 'backblaze':
 
-    train_data = cPickle.load(open('./data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
-    val_data = cPickle.load(open('./data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
-    test_data = cPickle.load(open('./data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+        # These options only work if you are creating a new dataset
+        # TODO: Need to find better way to do this
+        args.drive_model = 'ST3000DM001'
+        args.hist = 5
+        args.pred_window = 3
+        args.op_channels = 2
 
-    # train_data_raw = open('./data/ElectricDevices_TRAIN','r+')
-    # ucr_data = ucrDataReader(train_data_raw,0.8,args.op_channels)
-    # train_data, val_data = ucr_data.trainTestSplit()
 
-    # TODO: Figure out the conf details
-    parser.add_argument('--op_channels', type= int, default=2, help='number of output classes')
+        # backblaze_data = blackblazeReader(args)
+        # train, val, test = backblaze_data.train_test_split(args.split_ratio)
+
+        # Saved the train, val and test sets for future work, as they take a lot of time to prepare
+        # cPickle.dump(train, open('./data/backblaze_' + str(args.drive_model) + '_train.pkl','w'))
+        # cPickle.dump(val, open('./data/backblaze_' + str(args.drive_model) + '_val.pkl', 'w'))
+        # cPickle.dump(test, open('./data/backblaze_' + str(args.drive_model) + '_test.pkl', 'w'))
+
+        train_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+        val_data = cPickle.load(open('./data/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+        test_data = cPickle.load(open('./data/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+
+    elif args.dataset == 'electric':
+
+        args.op_channels = 7
+        train_data_raw = open('./data/ucr/ElectricDevices_TRAIN','r+')
+        ucr_data = ucrDataReader(train_data_raw,args.split_ratio,args.op_channels)
+        train_data, val_data, test_data = ucr_data.trainTestSplit()
+
+    elif args.dataset == "mnist":
+
+        mnist = input_data.read_data_sets('./data/mnist/input_data', one_hot=True)
+        args.op_channels = 10
+        args.ip_channels = 784
+        args.max_batches_train = 1000
+        train_data = np.hstack((mnist.train.images, mnist.train.labels))
+        val_data = np.hstack((mnist.validation.images, mnist.validation.labels))
+        test_data = np.hstack((mnist.test.images, mnist.test.labels))
+
+    else:
+        raise ValueError("Dataset option provided does not exist")
 
     return train_data, val_data, test_data
 
 def data_args():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dirloc', type=str, default='./data/backblaze',
-                        help='data location for all data')
-    parser.add_argument('--split_ratio', type=list, default=[0.8, 0.1, 0.1],
-                        help='split ratio for train, validation and test')
+    parser.add_argument('--dataset', type=str, default='mnist',help='data location for all data')
     parser.add_argument('--batch_size', type=int, default=64, help='batch size for data')
-    parser.add_argument('--drive_model', type=str, default='ST3000DM001', help='drive model for model building')
-    parser.add_argument('--hist', type=int, default=5, help='history to use when predicting')
-    parser.add_argument('--pred_window', type=int, default=3, help='lookahead to be used for prediction')
-    parser.add_argument('--logdir', type=str, default='./logs', help='log directory')
     args = parser.parse_args()
 
     return args
@@ -53,10 +71,11 @@ def dnn_args():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--layer_sizes', type=list, default=[64,32,16], help='number of hidden units in the cell')
-
     parser.add_argument('--num_epochs', type=int, default=5, help='max number of epochs to run the training')
     parser.add_argument('--lr_rate', type=float, default=1e-03, help='learning rate')
     parser.add_argument('--lr_decay', type=float, default=0.97, help='learning rate decay')
+    parser.add_argument('--drop_prob', type=float, default=0, help='dropout probability')
+    parser.add_argument('--logdir', type=str, default='./logs/dnn', help='log directory')
     args = parser.parse_args()
 
     return args
@@ -64,10 +83,17 @@ def dnn_args():
 def lstm_args():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--layer_sizes', type=list, default=[64, 32, 16], help='number of hidden units in the cell')
-    parser.add_argument('--num_epochs', type=int, default=5, help='max number of epochs to run the training')
-    parser.add_argument('--lr_rate', type=float, default=1e-03, help='learning rate')
+    parser.add_argument('--batch_len', type=int, default=1, help='number of time steps to unroll')
+    parser.add_argument('--cell', type=str, default='lstm', help='the cell type to use, currently only LSTM')
+    parser.add_argument('--num_layers', type=int, default=1, help='depth of hidden units in the model')
+    parser.add_argument('--hidden_units', type=int, default=32, help='number of hidden units in the cell')
+    parser.add_argument('--num_epochs', type=int, default=50, help='max number of epochs to run the training')
+    parser.add_argument('--lr_rate', type=float, default=2e-5, help='learning rate')
     parser.add_argument('--lr_decay', type=float, default=0.97, help='learning rate decay')
+    parser.add_argument('--drop_prob', type=float, default=0, help='dropout probability')
+    parser.add_argument('--grad_clip', type=float, default=5.0, help='clip gradients at this value')
+    parser.add_argument('--stateful', type=bool, default=True, help='save at every batches')
+    parser.add_argument('--logdir', type=str, default='./logs/dnn', help='log directory')
     args = parser.parse_args()
 
     return args
@@ -75,10 +101,13 @@ def lstm_args():
 def cnn_args():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--layer_sizes', type=list, default=[64, 32, 16], help='number of hidden units in the cell')
+    parser.add_argument('--num_layers', type=int, default=3, help='number of hidden layers')
+    parser.add_argument('--layer_sizes', type=dict, default={'conv_1': [],'conv_2': [], 'full_3': []},
+                        help='dict specifying each layers hidden unit type and parameters')
     parser.add_argument('--num_epochs', type=int, default=5, help='max number of epochs to run the training')
     parser.add_argument('--lr_rate', type=float, default=1e-03, help='learning rate')
     parser.add_argument('--lr_decay', type=float, default=0.97, help='learning rate decay')
+    parser.add_argument('--logdir', type=str, default='./logs/cnn', help='log directory')
     args = parser.parse_args()
 
     return args
@@ -86,40 +115,35 @@ def cnn_args():
 def main():
 
     args_data = data_args()
-    args_dnn = dnn_args()
+    args_model = dnn_args()
 
+    # based on the args_data parameters determine the dataset to be downloaded and split
     train_data, val_data, test_data = get_data_obj(args_data)
 
     # Training section
     print "Training Dataset Shape: "
     print train_data.shape
 
-    batch_train = batchGenerator(train_data, args.batch_size, args.op_channels)
-    batch_train.createBatches()
-    args.max_batches_train = batch_train.get_num_batches()
-    args.ip_channels = batch_train.get_ip_channels()
+    batch_train = batchGenerator(train_data, args_data.batch_size, args_data.op_channels)
+    args_model.max_batches_train = batch_train.get_num_batches()
+    args_model.ip_channels = batch_train.get_ip_channels()
+    args_model.op_channels = args_data.op_channels
 
-    '''
-    mnist = input_data.read_data_sets('./data/mnist/input_data', one_hot=True)
-    args.ip_channels = 784
-    args.max_batches_train = 1000
-    '''
+    # train and return the saved trainable parameters of the model
+    train(args_model,batch_train)
 
-    '''
     # Validation section
     print "Validation DataSet Shape: "
     print val_data.shape
 
-    batch_val = batchGenerator(val_data,args.batch_size,args.op_channels)
-    batch_val.createBatches()
-    args.max_batches_train = batch_val.get_num_batches()
-    args.ip_channels = batch_val.get_ip_channels()
-    val(args,batch_val,"val")
-    '''
+    batch_val = batchGenerator(val_data,args_data.batch_size,args_data.op_channels)
+    args_model.max_batches_train = batch_val.get_num_batches()
+    args_model.ip_channels = batch_val.get_ip_channels()
+    args_model.op_channels = args_data.op_channels
 
-    # train and return the saved trainable parameters of the model
-    #train(args,mnist)
-    train(args,batch_train)
+    val(args_model,batch_val,"val")
+
+
 
 if __name__ == "__main__":
     main()

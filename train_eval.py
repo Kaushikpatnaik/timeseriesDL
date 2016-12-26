@@ -14,9 +14,10 @@ def run_train_epoch(session, model, data, args, max_batches,sess_summary):
   '''
 
   start_time = time.time()
-  softmax_op = np.zeros((max_batches*args.batch_size,args.op_channels))
+  row, col = data.get_data_size()
+  softmax_op = np.zeros((row,args.op_channels))
   cost_trajectory = []
-  y_onehot = np.zeros((max_batches*args.batch_size,args.op_channels))
+  y_onehot = np.zeros((row,args.op_channels))
   epoch_cost = 0.0
 
   for i in range(max_batches):
@@ -28,8 +29,8 @@ def run_train_epoch(session, model, data, args, max_batches,sess_summary):
                 feed_dict={model.input_layer_x: x, model.input_layer_y: y})
     sess_summary.add_summary(summary,i)
     cost_trajectory.append(cur_cost)
-    softmax_op[i*args.batch_size:(i+1)*args.batch_size,:] = output_prob
-    y_onehot[i*args.batch_size:(i+1)*args.batch_size,:] = y
+    softmax_op[i*len(y):(i+1)*len(y),:] = output_prob
+    y_onehot[i*len(y):(i+1)*len(y),:] = y
     epoch_cost += cur_cost
 
     #print "Batch Cross Entropy Loss: "
@@ -50,16 +51,17 @@ def run_val_test_epoch(session, model, data, args, max_batches,sess_summary):
   '''
 
   start_time = time.time()
-  softmax_op = np.zeros((max_batches*args.batch_size,args.op_channels))
-  y_onehot = np.zeros((max_batches*args.batch_size,args.op_channels))
+  row, col = data.get_data_size()
+  softmax_op = np.zeros((row,args.op_channels))
+  y_onehot = np.zeros((row,args.op_channels))
 
   for i in range(max_batches):
     x, y = data.next()
     summary, output_prob = session.run([model.summaries,model.output_prob],
                 feed_dict={model.input_layer_x: x})
     sess_summary.add_summary(summary,i)
-    softmax_op[i*args.batch_size:(i+1)*args.batch_size,:] = output_prob
-    y_onehot[i * args.batch_size:(i + 1) * args.batch_size, :] = y
+    softmax_op[i*len(y):(i+1)*len(y),:] = output_prob
+    y_onehot[i*len(y):(i + 1)*len(y),:] = y
 
   end_time = time.time()
 
@@ -72,18 +74,11 @@ def train(args,batch_train):
 
     # Initialize session and graph
     with tf.Graph().as_default(), tf.Session() as session:
-        initializer = tf.random_normal_initializer(0, 0.01)
 
-        with tf.variable_scope("model", reuse=None, initializer=initializer):
+        with tf.variable_scope("model", reuse=None):
 
             args.mode = 'train'
-            if args.model_opt == 'fullDNNNoHistory':
-                train_model = fullDNNNoHistory(args)
-            elif args.model_opt == 'fullDNNWithHistory':
-                train_model = fullDNNWithHistory(args)
-            else:
-                raise NotImplementedError
-
+            train_model = fullDNNNoHistory(args)
             train_model.build_graph()
             tf.initialize_all_variables().run()
 
@@ -92,7 +87,6 @@ def train(args,batch_train):
             cost_over_batches = []
 
             for i in range(args.num_epochs):
-                # TODO: Add parameter for max_max_epochs
                 lr_decay = args.lr_decay ** max(i - 2.0, 0.0)
                 train_model.assign_lr(session, args.lr_rate * lr_decay)
 
@@ -105,13 +99,10 @@ def train(args,batch_train):
                 cost_over_batches += y_cost
 
                 if i%5 ==0:
-                    saver.save(session,'./logs/train/train-model-iter',global_step=i)
+                    saver.save(session,args.logdir+'/train/train-model-iter',global_step=i)
 
-            saver.save(session,'./logs/train/final-model')
+            saver.save(session,args.logdir+'/train/final-model')
             train_writer.close()
-
-            print "Len cost over batches: "
-            print len(cost_over_batches)
 
             plt.plot(np.linspace(1,len(cost_over_batches),len(cost_over_batches)),cost_over_batches)
             plt.title('Cost per batch over the training run')
@@ -126,23 +117,17 @@ def val(args,batch_val,mode):
 
         with tf.variable_scope("model"):
 
-            args.mode = mode
-            if args.model_opt == 'fullDNNNoHistory':
-                val_model = fullDNNNoHistory(args)
-            elif args.model_opt == 'fullDNNWithHistory':
-                val_model = fullDNNWithHistory(args)
-            else:
-                raise NotImplementedError
-
+            args.mode = 'val'
+            val_model = fullDNNNoHistory(args)
             val_model.build_graph()
             val_writer = tf.train.SummaryWriter(args.logdir+'/val',session.graph)
             restore_var = tf.train.Saver()
-            restore_var.restore(session, './logs/train/final-model')
+            restore_var.restore(session, args.logdir+'/train/final-model')
 
             # run a complete epoch and return appropriate variables
             y_prob, y_onehot = run_val_test_epoch(session, val_model, batch_val, args, args.max_batches_train,val_writer)
 
-            print "Confusion metrics post "+args.mode+" :"
+            print "Confusion metrics post Validation"+args.mode+" :"
             print compConfusion(y_prob, y_onehot)
 
             val_writer.close()
