@@ -78,7 +78,15 @@ def train(args,batch_train):
         with tf.variable_scope("model", reuse=None):
 
             args.mode = 'train'
-            train_model = fullDNNNoHistory(args)
+            if args.model == 'fullDNNNoHistory':
+                train_model = fullDNNNoHistory(args)
+            elif args.model == 'oneDCNN':
+                train_model = oneDCNN(args)
+            elif args.model == 'LSTM':
+                train_model = LSTM(args)
+            else:
+                raise ValueError("model specified has not been implemented")
+
             train_model.build_graph()
             tf.initialize_all_variables().run()
 

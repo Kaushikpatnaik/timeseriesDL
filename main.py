@@ -1,5 +1,3 @@
-import sys
-import time
 import cPickle
 
 import tensorflow as tf
@@ -8,6 +6,8 @@ import argparse
 import numpy as np
 from read_data import *
 from train_eval import *
+import json
+from collections import OrderedDict
 
 from tensorflow.examples.tutorials.mnist import input_data
 
@@ -77,6 +77,7 @@ def dnn_args():
     parser.add_argument('--drop_prob', type=float, default=0, help='dropout probability')
     parser.add_argument('--logdir', type=str, default='./logs/dnn', help='log directory')
     args = parser.parse_args()
+    args.model = 'fullDNNNoHistory'
 
     return args
 
@@ -95,6 +96,7 @@ def lstm_args():
     parser.add_argument('--stateful', type=bool, default=True, help='save at every batches')
     parser.add_argument('--logdir', type=str, default='./logs/dnn', help='log directory')
     args = parser.parse_args()
+    args.model = 'LSTM'
 
     return args
 
@@ -102,20 +104,24 @@ def cnn_args():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--num_layers', type=int, default=3, help='number of hidden layers')
-    parser.add_argument('--layer_sizes', type=dict, default={'conv_1': [],'conv_2': [], 'full_3': []},
-                        help='dict specifying each layers hidden unit type and parameters')
+    # TODO: Change to layer params and think about method for padding, kernel size and stride
     parser.add_argument('--num_epochs', type=int, default=5, help='max number of epochs to run the training')
     parser.add_argument('--lr_rate', type=float, default=1e-03, help='learning rate')
     parser.add_argument('--lr_decay', type=float, default=0.97, help='learning rate decay')
+    parser.add_argument('--init_std_dev', type=float, default=0.001, help='std. deviation to be used for truncated normalized initialization')
+    parser.add_argument('--reg_scale', type=float, default=0.01, help='regularization scaling factor to be used')
     parser.add_argument('--logdir', type=str, default='./logs/cnn', help='log directory')
     args = parser.parse_args()
+    # Note: V0.10 has conv1d not part of API, sot the implementation is hacky at best
+    args.layer_params = OrderedDict({'3_full': (64), '2_conv': (3,16,1,'VALID'), '1_conv': (3,32,1,'VALID')})
+    args.model = 'oneDCNN'
 
     return args
 
 def main():
 
     args_data = data_args()
-    args_model = dnn_args()
+    args_model = cnn_args()
 
     # based on the args_data parameters determine the dataset to be downloaded and split
     train_data, val_data, test_data = get_data_obj(args_data)

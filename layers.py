@@ -94,3 +94,7 @@ def artrous_conv1d(value, filters, rate, padding, name=None):
 
         else:
             raise ValueError("Rate must be >= 1")
+
+# TODO: doing maxpooling over 1D convolution output
+def maxPool1D():
+    raise NotImplementedError
