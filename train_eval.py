@@ -21,9 +21,6 @@ def run_train_epoch(session, model, data, args, max_batches,sess_summary):
   epoch_cost = 0.0
 
   for i in range(max_batches):
-    # TODO: Convert current batch generator to mnist format
-    # switch b/w MNIST and other data here
-    #x, y = data.train.next_batch(args.batch_size)
     x, y = data.next()
     summary, cur_cost, output_prob, _ = session.run([model.summaries,model.cost,model.output_prob,model.train_op],
                 feed_dict={model.input_layer_x: x, model.input_layer_y: y})
@@ -57,6 +54,7 @@ def run_val_test_epoch(session, model, data, args, max_batches,sess_summary):
 
   for i in range(max_batches):
     x, y = data.next()
+    print type(x)
     summary, output_prob = session.run([model.summaries,model.output_prob],
                 feed_dict={model.input_layer_x: x})
     sess_summary.add_summary(summary,i)
@@ -126,7 +124,15 @@ def val(args,batch_val,mode):
         with tf.variable_scope("model"):
 
             args.mode = 'val'
-            val_model = fullDNNNoHistory(args)
+            if args.model == 'fullDNNNoHistory':
+                val_model = fullDNNNoHistory(args)
+            elif args.model == 'oneDCNN':
+                val_model = oneDCNN(args)
+            elif args.model == 'LSTM':
+                val_model = LSTM(args)
+            else:
+                raise ValueError("model specified has not been implemented")
+
             val_model.build_graph()
             val_writer = tf.train.SummaryWriter(args.logdir+'/val',session.graph)
             restore_var = tf.train.Saver()
