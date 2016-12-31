@@ -55,8 +55,7 @@ def run_val_test_epoch(session, model, data, args, max_batches,sess_summary):
   for i in range(max_batches):
     x, y = data.next()
     print type(x)
-    summary, output_prob = session.run([model.summaries,model.output_prob],
-                feed_dict={model.input_layer_x: x})
+    summary, output_prob = session.run([model.summaries,model.output_prob],feed_dict={model.input_layer_x: x})
     sess_summary.add_summary(summary,i)
     softmax_op[i*len(y):(i+1)*len(y),:] = output_prob
     y_onehot[i*len(y):(i + 1)*len(y),:] = y
@@ -137,6 +136,9 @@ def val(args,batch_val,mode):
             val_writer = tf.train.SummaryWriter(args.logdir+'/val',session.graph)
             restore_var = tf.train.Saver()
             restore_var.restore(session, args.logdir+'/train/final-model')
+
+            print [var.name for var in tf.get_default_graph().get_operations()]
+            print [var.op.name for var in tf.get_default_graph().get_collection(tf.GraphKeys.VARIABLES)]
 
             # run a complete epoch and return appropriate variables
             y_prob, y_onehot = run_val_test_epoch(session, val_model, batch_val, args, args.max_batches_train,val_writer)

@@ -154,14 +154,13 @@ def main():
     print val_data.shape
 
     batch_val = batchGenerator(val_data,64, args_data.ip_channels, args_data.op_channels, args_data.seq_len)
-    args_model.max_batches_train = batch_val.get_num_batches()
+    args_model.max_batches_val = batch_val.get_num_batches()
     args_model.ip_channels = args_data.ip_channels
     args_model.op_channels = args_data.op_channels
     args_model.seq_len = args_data.seq_len
     args_model.batch_size = 64
 
     val(args_model,batch_val,"val")
-
 
 
 if __name__ == "__main__":
