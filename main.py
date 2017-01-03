@@ -41,8 +41,8 @@ def get_data_obj(args):
         # cPickle.dump(test, open('./data/backblaze_' + str(args.drive_model) + '_test.pkl', 'w'))
 
         train_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
-        val_data = cPickle.load(open('./data/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
-        test_data = cPickle.load(open('./data/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+        val_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+        test_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
 
     elif args.dataset == 'electric':
 
@@ -55,7 +55,7 @@ def get_data_obj(args):
 
     elif args.dataset == "mnist":
 
-        mnist = input_data.read_data_sets('./data/mnist/input_data', one_hot=True)
+        mnist = input_data.read_data_sets('./data/mnist', one_hot=True)
         args.op_channels = 10
         args.ip_channels = 28
         args.seq_len = 28
@@ -81,7 +81,7 @@ def dnn_args():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--layer_sizes', type=list, default=[64,32,16], help='number of hidden units in the cell')
-    parser.add_argument('--num_epochs', type=int, default=5, help='max number of epochs to run the training')
+    parser.add_argument('--num_epochs', type=int, default=2, help='max number of epochs to run the training')
     parser.add_argument('--lr_rate', type=float, default=1e-03, help='learning rate')
     parser.add_argument('--lr_decay', type=float, default=0.97, help='learning rate decay')
     parser.add_argument('--drop_prob', type=float, default=0, help='dropout probability')
@@ -129,7 +129,7 @@ def cnn_args():
 def main():
 
     args_data = data_args()
-    args_model = lstm_args()
+    args_model = dnn_args()
 
     # based on the args_data parameters determine the dataset to be downloaded and split
     train_data, val_data, test_data = get_data_obj(args_data)

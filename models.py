@@ -12,12 +12,12 @@ def _activation_summary(var):
     with tf.name_scope('summary'):
         tensor_name = var.op.name
         mean = tf.reduce_mean(var)
-        tf.scalar_summary(tensor_name+'mean',mean)
+        tf.summary.scalar(tensor_name+'mean',mean)
         std = tf.sqrt(tf.reduce_mean(tf.square(var-mean)))
-        tf.scalar_summary(tensor_name+'std',std)
-        tf.scalar_summary(tensor_name+'min',tf.reduce_min(var))
-        tf.scalar_summary(tensor_name+'max',tf.reduce_max(var))
-        tf.histogram_summary(tensor_name+'histogram',var)
+        tf.summary.scalar(tensor_name+'std',std)
+        tf.summary.scalar(tensor_name+'min',tf.reduce_min(var))
+        tf.summary.scalar(tensor_name+'max',tf.reduce_max(var))
+        tf.summary.histogram(tensor_name+'histogram',var)
 
 class oneDCNN(object):
 
@@ -43,7 +43,7 @@ class oneDCNN(object):
 
         if self.mode == 'train':
             self._add_train_nodes()
-        self.summaries = tf.merge_all_summaries()
+        self.summaries = tf.summary.merge_all()
 
     def build_cnn_layer(self,prev_layer,kernel_size,stride,padding,scope_name):
 
@@ -144,16 +144,16 @@ class oneDCNN(object):
 
         # compute cross entropy loss
         cross_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.output,self.input_layer_y))
-        tf.scalar_summary('cross_entropy_loss',cross_loss)
+        tf.summary.scalar('cross_entropy_loss',cross_loss)
 
         # gather regularization terms and add them to the total loss
         reg_var = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
         reg_scale = 0.1
         reg_losses = reg_scale * tf.add_n(reg_var)
-        tf.scalar_summary('regularization_loss',reg_losses)
+        tf.summary.scalar('regularization_loss',reg_losses)
 
         self.cost = cross_loss + reg_losses
-        tf.scalar_summary('total_loss',self.cost)
+        tf.summary.scalar('total_loss',self.cost)
 
         # learning rate
         self.lrn_rate = tf.Variable(self.init_lr_rate,trainable=False)
@@ -165,10 +165,10 @@ class oneDCNN(object):
 
         # histogram_summaries for weights and gradients
         for var in tf.trainable_variables():
-            tf.histogram_summary(var.op.name, var)
+            tf.summary.histogram(var.op.name, var)
         for grad, var in gradients:
             if grad is not None:
-                tf.histogram_summary(var.op.name+'/gradient',grad)
+                tf.summary.histogram(var.op.name+'/gradient',grad)
 
         self.train_op = optimizer.apply_gradients(gradients)
 
@@ -215,7 +215,7 @@ class fullDNNNoHistory(object):
 
         if self.mode == 'train':
             self._add_train_nodes()
-        self.summaries = tf.merge_all_summaries()
+        self.summaries = tf.summary.merge_all()
 
     def build_single_layer(self,prev_layer, ip_size, op_size):
 
@@ -274,10 +274,10 @@ class fullDNNNoHistory(object):
         reg_constant = 0.1
 
         self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.output,self.input_layer_y)) + reg_constant*tf.add_n(reg_losses)
-        tf.scalar_summary("loss",self.cost)
+        tf.summary.scalar("loss",self.cost)
 
         self.lrn_rate = tf.Variable(self.init_learn_rate,trainable=False,dtype=tf.float32)
-        tf.scalar_summary('learning_rate',self.lrn_rate)
+        tf.summary.scalar('learning_rate',self.lrn_rate)
 
         trainable_variables = tf.trainable_variables()
         optimizer = tf.train.AdamOptimizer(self.lrn_rate)
@@ -285,10 +285,10 @@ class fullDNNNoHistory(object):
 
         # histogram_summaries for weights and gradients
         for var in tf.trainable_variables():
-            tf.histogram_summary(var.op.name, var)
+            tf.summary.histogram(var.op.name, var)
         for grad, var in grads_vars:
             if grad is not None:
-                tf.histogram_summary(var.op.name+'/gradient',grad)
+                tf.summary.histogram(var.op.name+'/gradient',grad)
 
         self.train_op = optimizer.apply_gradients(grads_vars)
 
@@ -318,7 +318,7 @@ class LSTM(object):
 
         if self.mode == 'train':
             self._add_train_nodes()
-        self.summaries = tf.merge_all_summaries()
+        self.summaries = tf.summary.merge_all()
 
     def _build_model(self):
 
@@ -369,7 +369,7 @@ class LSTM(object):
         # TODO: Implement proper loss function for encoder like structure of LSTM
         # TODO: Add regularization
         self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.logits,self.input_layer_y))
-        tf.scalar_summary("loss",self.cost)
+        tf.summary.scalar("loss",self.cost)
 
         self.lr = tf.Variable(self.init_lr, trainable=False)
         trainable_variables = tf.trainable_variables()
@@ -378,10 +378,10 @@ class LSTM(object):
 
         # histogram_summaries for weights and gradients
         for var in tf.trainable_variables():
-            tf.histogram_summary(var.op.name, var)
+            tf.summary.histogram(var.op.name, var)
         for grad, var in grads_vars:
             if grad is not None:
-                tf.histogram_summary(var.op.name+'/gradient',grad)
+                tf.summary.histogram(var.op.name+'/gradient',grad)
 
         # TODO: Think about how gradient clipping is implemented, cross check
         grads, _ = tf.clip_by_global_norm([grad for (grad,var) in grads_vars], self.grad_clip)
@@ -389,3 +389,6 @@ class LSTM(object):
 
     def assign_lr(self,session,lr_value):
         session.run(tf.assign(self.lr, lr_value))
+
+    def initialize_state(self,session):
+        session.run(self.initial_state)
