@@ -1,5 +1,3 @@
-import cPickle
-
 import tensorflow as tf
 import argparse
 
@@ -9,127 +7,59 @@ from train_eval import *
 import json
 from collections import OrderedDict
 
-from tensorflow.examples.tutorials.mnist import input_data
 
-def get_data_obj(args):
-    '''
-    Reading the data and flatting the sequence. i.e each row is seq_len (history) * num of channels (features)
-    Args:
-        args:
+class data_args(object):
 
-    Returns:
+    dataset = 'mnist'
+    batch_size = 64
 
-    '''
+class dnn_args(object):
 
-    # TODO: determine the dataset num classes automatically
-    if args.dataset == 'backblaze':
+    layer_sizes = [64,32,16]
+    num_epochs = 2
+    lr_rate = 1e-03
+    lr_decay = 0.97
+    logdir = './logs/dnn'
+    model = 'fullDNNNoHistory'
 
-        # These options only work if you are creating a new dataset
-        # TODO: Need to find better way to do this
-        args.drive_model = 'ST3000DM001'
-        args.hist = 5
-        args.pred_window = 3
-        args.op_channels = 2
+class lstm_args(object):
 
+    cell = 'lstm'
+    num_layers = 1
+    hidden_units = 32
+    num_epochs = 2
+    lr_rate = 2e-05
+    lr_decay = 0.97
+    grad_clip = 5.0
+    logdir = './logs/lstm'
+    model = 'LSTM'
 
-        # backblaze_data = blackblazeReader(args)
-        # train, val, test = backblaze_data.train_test_split(args.split_ratio)
+class cnn_args(object):
 
-        # Saved the train, val and test sets for future work, as they take a lot of time to prepare
-        # cPickle.dump(train, open('./data/backblaze_' + str(args.drive_model) + '_train.pkl','w'))
-        # cPickle.dump(val, open('./data/backblaze_' + str(args.drive_model) + '_val.pkl', 'w'))
-        # cPickle.dump(test, open('./data/backblaze_' + str(args.drive_model) + '_test.pkl', 'w'))
+    num_layers = 3
+    num_epochs = 5
+    lr_rate = 1e-03
+    lr_decay = 0.97
+    logdir = './logs/cnn'
+    layer_params = OrderedDict({'3_full': (64), '2_conv': (3,16,[1,1,1],'VALID'), '1_conv': (3,32,[1,1,1],'VALID')})
+    model = 'oneDCNN'
 
-        train_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
-        val_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
-        test_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+class cnn_multi_args(object):
 
-    elif args.dataset == 'electric':
+    num_layers = 3
+    num_epochs = 5
+    lr_rate = 1e-03
+    lr_decay = 0.97
+    logdir = './logs/cnn'
+    layer_params = OrderedDict({'3_full': (64), '2_conv': (3,16,[1,1,1],'VALID'), '1_conv': (3,32,[1,1,1],'VALID')})
+    sub_sample = [2,3,4]
+    model = 'oneDMultiChannelCNN'
 
-        args.op_channels = 7
-        args.seq_len = 96
-        args.ip_channels = 1
-        train_data_raw = open('./data/ucr/ElectricDevices_TRAIN','r+')
-        ucr_data = ucrDataReader(train_data_raw,args.split_ratio,args.op_channels)
-        train_data, val_data, test_data = ucr_data.trainTestSplit()
-
-    elif args.dataset == "mnist":
-
-        mnist = input_data.read_data_sets('./data/mnist', one_hot=True)
-        args.op_channels = 10
-        args.ip_channels = 28
-        args.seq_len = 28
-        train_data = np.hstack((mnist.train.images, mnist.train.labels))
-        val_data = np.hstack((mnist.validation.images, mnist.validation.labels))
-        test_data = np.hstack((mnist.test.images, mnist.test.labels))
-
-    else:
-        raise ValueError("Dataset option provided does not exist")
-
-    return train_data, val_data, test_data
-
-def data_args():
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=str, default='mnist',help='data location for all data')
-    parser.add_argument('--batch_size', type=int, default=64, help='batch size for data')
-    args = parser.parse_args()
-
-    return args
-
-def dnn_args():
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--layer_sizes', type=list, default=[64,32,16], help='number of hidden units in the cell')
-    parser.add_argument('--num_epochs', type=int, default=2, help='max number of epochs to run the training')
-    parser.add_argument('--lr_rate', type=float, default=1e-03, help='learning rate')
-    parser.add_argument('--lr_decay', type=float, default=0.97, help='learning rate decay')
-    parser.add_argument('--drop_prob', type=float, default=0, help='dropout probability')
-    parser.add_argument('--logdir', type=str, default='./logs/dnn', help='log directory')
-    args = parser.parse_args()
-    args.model = 'fullDNNNoHistory'
-
-    return args
-
-def lstm_args():
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--cell', type=str, default='lstm', help='the cell type to use, currently only LSTM')
-    parser.add_argument('--num_layers', type=int, default=1, help='depth of hidden units in the model')
-    parser.add_argument('--hidden_units', type=int, default=32, help='number of hidden units in the cell')
-    parser.add_argument('--num_epochs', type=int, default=2, help='max number of epochs to run the training')
-    parser.add_argument('--lr_rate', type=float, default=2e-5, help='learning rate')
-    parser.add_argument('--lr_decay', type=float, default=0.97, help='learning rate decay')
-    parser.add_argument('--grad_clip', type=float, default=5.0, help='clip gradients at this value')
-    parser.add_argument('--logdir', type=str, default='./logs/lstm', help='log directory')
-
-    args = parser.parse_args()
-    args.model = 'LSTM'
-
-    return args
-
-def cnn_args():
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--num_layers', type=int, default=3, help='number of hidden layers')
-    # TODO: Change to layer params and think about method for padding, kernel size and stride
-    parser.add_argument('--num_epochs', type=int, default=5, help='max number of epochs to run the training')
-    parser.add_argument('--lr_rate', type=float, default=1e-03, help='learning rate')
-    parser.add_argument('--lr_decay', type=float, default=0.97, help='learning rate decay')
-    parser.add_argument('--init_std_dev', type=float, default=0.001, help='std. deviation to be used for truncated normalized initialization')
-    parser.add_argument('--reg_scale', type=float, default=0.01, help='regularization scaling factor to be used')
-    parser.add_argument('--logdir', type=str, default='./logs/cnn', help='log directory')
-    args = parser.parse_args()
-    # Note: V0.10 has conv1d not part of API, so the implementation is hacky at best
-    args.layer_params = OrderedDict({'3_full': (64), '2_conv': (3,16,1,'VALID'), '1_conv': (3,32,1,'VALID')})
-    args.model = 'oneDCNN'
-
-    return args
 
 def main():
 
     args_data = data_args()
-    args_model = dnn_args()
+    args_model = lstm_args()
 
     # based on the args_data parameters determine the dataset to be downloaded and split
     train_data, val_data, test_data = get_data_obj(args_data)
@@ -137,6 +67,15 @@ def main():
     # Training section
     print "Training Dataset Shape: "
     print train_data.shape
+
+    if args_model.model == 'oneDMultiChannelCNN':
+        train_data_new = low_pass_and_subsample(train_data)
+        val_data_new = low_pass_and_subsample(val_data)
+        test_data_new = low_pass_and_subsample(test_data)
+    if args_model.model == 'freqCNN':
+        train_data_new = freq_transform(train_data)
+        val_data_new = freq_transform(val_data)
+        test_data_new = freq_transform(test_data)
 
     batch_train = batchGenerator(train_data, args_data.batch_size, args_data.ip_channels,
                                  args_data.op_channels, args_data.seq_len)

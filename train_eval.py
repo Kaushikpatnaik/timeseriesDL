@@ -24,7 +24,7 @@ def print_tensors_in_checkpoint_file(file_name):
         var_to_shape_map = reader.get_variable_to_shape_map()
         for key in var_to_shape_map:
             print("tensor_name: ", key)
-            #print(reader.get_tensor(key))
+            print(reader.get_tensor(key))
     except Exception as e:  # pylint: disable=broad-except
         print(str(e))
         if "corrupted compressed block contents" in str(e):
@@ -165,10 +165,9 @@ def val(args,batch_val,mode):
             restore_var = tf.train.Saver()
             restore_var.restore(session, args.logdir+'/train/final-model')
 
-            print type(val_model.input_layer_x)
-            #print_tensors_in_checkpoint_file(args.logdir+'/train/final-model')
-            print [var.name for var in tf.get_default_graph().get_operations()]
-            print [var.op.name for var in tf.get_default_graph().get_collection(tf.GraphKeys.GLOBAL_VARIABLES)]
+            #print type(val_model.input_layer_x)
+            #print [var.name for var in tf.get_default_graph().get_operations()]
+            #print [var.op.name for var in tf.get_default_graph().get_collection(tf.GraphKeys.GLOBAL_VARIABLES)]
 
             # run a complete epoch and return appropriate variables
             y_prob, y_onehot = run_val_test_epoch(session, val_model, batch_val, args, args.max_batches_val,val_writer)

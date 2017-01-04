@@ -6,6 +6,17 @@ File containing implementation of layers not implemented in tensorflow
 
 import tensorflow as tf
 
+def activation_summary(var):
+    with tf.name_scope('summary'):
+        tensor_name = var.op.name
+        mean = tf.reduce_mean(var)
+        tf.summary.scalar(tensor_name+'mean',mean)
+        std = tf.sqrt(tf.reduce_mean(tf.square(var-mean)))
+        tf.summary.scalar(tensor_name+'std',std)
+        tf.summary.scalar(tensor_name+'min',tf.reduce_min(var))
+        tf.summary.scalar(tensor_name+'max',tf.reduce_max(var))
+        tf.summary.histogram(tensor_name+'histogram',var)
+
 def space_to_batch_1d(input, paddings, block_size, name=None):
     '''
     1d equivalent of space_to_batch function in tensorflow

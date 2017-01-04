@@ -3,6 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
+from tensorflow.examples.tutorials.mnist import input_data
+import cPickle
+
 class ucrDataReader(object):
     '''
     UCR time series has only one channel
@@ -239,3 +242,60 @@ class batchGenerator(object):
         self.cursor = (self.cursor+1)%self.num_batches
 
         return x,y
+
+def get_data_obj(args):
+    '''
+    Reading the data and flatting the sequence. i.e each row is seq_len (history) * num of channels (features)
+    Args:
+        args:
+
+    Returns:
+
+    '''
+
+    # TODO: determine the dataset num classes automatically
+    if args.dataset == 'backblaze':
+
+        # These options only work if you are creating a new dataset
+        # TODO: Need to find better way to do this
+        args.drive_model = 'ST3000DM001'
+        args.hist = 5
+        args.pred_window = 3
+        args.op_channels = 2
+
+
+        # backblaze_data = blackblazeReader(args)
+        # train, val, test = backblaze_data.train_test_split(args.split_ratio)
+
+        # Saved the train, val and test sets for future work, as they take a lot of time to prepare
+        # cPickle.dump(train, open('./data/backblaze_' + str(args.drive_model) + '_train.pkl','w'))
+        # cPickle.dump(val, open('./data/backblaze_' + str(args.drive_model) + '_val.pkl', 'w'))
+        # cPickle.dump(test, open('./data/backblaze_' + str(args.drive_model) + '_test.pkl', 'w'))
+
+        train_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+        val_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+        test_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+
+    elif args.dataset == 'electric':
+
+        args.op_channels = 7
+        args.seq_len = 96
+        args.ip_channels = 1
+        train_data_raw = open('./data/ucr/ElectricDevices_TRAIN','r+')
+        ucr_data = ucrDataReader(train_data_raw,args.split_ratio,args.op_channels)
+        train_data, val_data, test_data = ucr_data.trainTestSplit()
+
+    elif args.dataset == "mnist":
+
+        mnist = input_data.read_data_sets('./data/mnist', one_hot=True)
+        args.op_channels = 10
+        args.ip_channels = 28
+        args.seq_len = 28
+        train_data = np.hstack((mnist.train.images, mnist.train.labels))
+        val_data = np.hstack((mnist.validation.images, mnist.validation.labels))
+        test_data = np.hstack((mnist.test.images, mnist.test.labels))
+
+    else:
+        raise ValueError("Dataset option provided does not exist")
+
+    return train_data, val_data, test_data
