@@ -276,21 +276,26 @@ def get_data_obj(args):
         val_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
         test_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
 
+        op_channels = 2
+        seq_len = 5
+        ip_channels = 108
+
     elif args.dataset == 'electric':
 
-        args.op_channels = 7
-        args.seq_len = 96
-        args.ip_channels = 1
+        op_channels = 7
+        seq_len = 96
+        ip_channels = 1
+
         train_data_raw = open('./data/ucr/ElectricDevices_TRAIN','r+')
-        ucr_data = ucrDataReader(train_data_raw,args.split_ratio,args.op_channels)
+        ucr_data = ucrDataReader(train_data_raw,args.split_ratio,op_channels)
         train_data, val_data, test_data = ucr_data.trainTestSplit()
 
     elif args.dataset == "mnist":
 
         mnist = input_data.read_data_sets('./data/mnist', one_hot=True)
-        args.op_channels = 10
-        args.ip_channels = 28
-        args.seq_len = 28
+        op_channels = 10
+        ip_channels = 28
+        seq_len = 28
         train_data = np.hstack((mnist.train.images, mnist.train.labels))
         val_data = np.hstack((mnist.validation.images, mnist.validation.labels))
         test_data = np.hstack((mnist.test.images, mnist.test.labels))
@@ -298,4 +303,28 @@ def get_data_obj(args):
     else:
         raise ValueError("Dataset option provided does not exist")
 
-    return train_data, val_data, test_data
+    return train_data, val_data, test_data, ip_channels, op_channels, seq_len
+
+
+def low_pass_and_subsample(data,wind_len=[5,10,15],sample_rate=[2,3,4]):
+    '''
+    Run a moving average filter, and sub sample the data channel wise to produce 6 transformations of the data
+    :param data: original data
+    :param wind_len: list specifying window length for moving average
+    :param sample_rate: list specifying rate of sub-sampling the data
+    :return: data_new, with transformations appended
+    '''
+
+    data_new = data.copy(deep=True)
+    for i in range(len(wind_len)):
+        for j in range(data.shape[1]):
+            data_new[:,j] = np.hstack((data_new[:,j],np.convolve(data[:,j],np.ones((wind_len[i]))/wind_len[i],'same')))
+
+    sub_sampled_lens = []
+    for i in range(len(sample_rate)):
+        for j in range(data.shape[1]):
+            temp = data[::,sample_rate[i]].copy()
+            sub_sampled_lens.append(len(temp))
+            data_new[:,j] = np.hstack((data_new[:,j],temp))
+
+    return data_new, sub_sampled_lens

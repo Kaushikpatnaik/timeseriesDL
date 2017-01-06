@@ -62,16 +62,16 @@ def main():
     args_model = lstm_args()
 
     # based on the args_data parameters determine the dataset to be downloaded and split
-    train_data, val_data, test_data = get_data_obj(args_data)
+    train_data, val_data, test_data, args_data.ip_channels, args_data.op_channels, args_data.seq_len = get_data_obj(args_data)
 
     # Training section
     print "Training Dataset Shape: "
     print train_data.shape
 
     if args_model.model == 'oneDMultiChannelCNN':
-        train_data_new = low_pass_and_subsample(train_data)
-        val_data_new = low_pass_and_subsample(val_data)
-        test_data_new = low_pass_and_subsample(test_data)
+        train_data_new, sub_sample_lens = low_pass_and_subsample(train_data)
+        val_data_new, sub_sample_lens = low_pass_and_subsample(val_data)
+        test_data_new, sub_sample_lens = low_pass_and_subsample(test_data)
     if args_model.model == 'freqCNN':
         train_data_new = freq_transform(train_data)
         val_data_new = freq_transform(val_data)
