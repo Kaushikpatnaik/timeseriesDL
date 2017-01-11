@@ -24,6 +24,7 @@ class oneDCNN(object):
         self.seq_len = args.seq_len
         self.mode = args.mode
         self.batch_size = args.batch_size
+        self.class_weights = args.weights
 
     def build_graph(self):
 
@@ -131,7 +132,8 @@ class oneDCNN(object):
         self.input_layer_y = tf.placeholder(tf.float32,shape=(self.batch_size,self.op_channels),name='input_layer_y')
 
         # compute cross entropy loss
-        cross_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.output,self.input_layer_y))
+        #cross_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.output,self.input_layer_y))
+        cross_loss = weighted_cross_entropy(self.class_weights,self.output,self.input_layer_y)
         tf.summary.scalar('cross_entropy_loss',cross_loss)
 
         # gather regularization terms and add them to the total loss
@@ -186,6 +188,7 @@ class oneDMultiChannelCNN(object):
         self.seq_len = args.seq_len
         self.mode = args.mode
         self.batch_size = args.batch_size
+        self.class_weights = args.weights
 
     def build_graph(self):
 
@@ -314,7 +317,8 @@ class oneDMultiChannelCNN(object):
         self.input_layer_y = tf.placeholder(tf.float32, shape=(self.batch_size, self.op_channels), name='input_layer_y')
 
         # compute cross entropy loss
-        cross_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.output, self.input_layer_y))
+        #cross_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.output, self.input_layer_y))
+        cross_loss = weighted_cross_entropy(self.class_weights,self.output,self.input_layer_y)
         tf.summary.scalar('cross_entropy_loss', cross_loss)
 
         # gather regularization terms and add them to the total loss
@@ -363,6 +367,7 @@ class fullDNNNoHistory(object):
         self.mode = args.mode
         self.init_learn_rate = args.lr_rate
         self.batch_size = args.batch_size
+        self.class_weights = args.weights
 
     def build_graph(self):
 
@@ -428,7 +433,8 @@ class fullDNNNoHistory(object):
         reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
         reg_constant = 0.1
 
-        self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.output,self.input_layer_y)) + reg_constant*tf.add_n(reg_losses)
+        #self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.output,self.input_layer_y)) + reg_constant*tf.add_n(reg_losses)
+        self.cost = weighted_cross_entropy(self.class_weights,self.output,self.input_layer_y) + reg_constant*tf.add_n(reg_losses)
         tf.summary.scalar("loss",self.cost)
 
         self.lrn_rate = tf.Variable(self.init_learn_rate,trainable=False,dtype=tf.float32)
@@ -466,6 +472,7 @@ class LSTM(object):
         self.init_lr = args.lr_rate
         self.grad_clip = args.grad_clip
         self.batch_size = args.batch_size
+        self.class_weights = args.weights
 
     def build_graph(self):
 
@@ -524,7 +531,8 @@ class LSTM(object):
         # sequence loss by example
         # TODO: Implement proper loss function for encoder like structure of LSTM
         # TODO: Add regularization
-        self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.logits,self.input_layer_y))
+        #self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.logits,self.input_layer_y))
+        self.cost = weighted_cross_entropy(self.class_weights,self.logits,self.input_layer_y)
         tf.summary.scalar("loss",self.cost)
 
         self.lr = tf.Variable(self.init_lr, trainable=False)

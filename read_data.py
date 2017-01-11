@@ -212,37 +212,6 @@ class blackblazeReader(object):
 
         return train,val,test
 
-
-class batchGenerator(object):
-
-    def __init__(self,data,batch_size,ip_channels,op_channels,seq_len):
-
-        self.data = data
-        self.batch_size = batch_size
-        self.ip_channels = ip_channels
-        self.op_channels = op_channels
-        self.seq_len = seq_len
-        self.cursor = 0
-        self.num_batches = int(len(self.data) / self.batch_size)
-
-    def get_num_batches(self):
-        return self.num_batches
-
-    def get_data_size(self):
-        return self.data.shape
-
-    def next(self):
-        temp = self.data[self.cursor*self.batch_size:(self.cursor+1)*self.batch_size,:]
-        x = temp[:,0:-self.op_channels]
-        y = temp[:,-self.op_channels:]
-        x = np.reshape(x,[self.batch_size,self.seq_len,self.ip_channels])
-
-        if self.cursor + 1 > self.num_batches:
-            self.data = np.random.permutation(self.data)
-        self.cursor = (self.cursor+1)%self.num_batches
-
-        return x,y
-
 def get_data_obj(args):
     '''
     Reading the data and flatting the sequence. i.e each row is seq_len (history) * num of channels (features)
@@ -305,6 +274,68 @@ def get_data_obj(args):
 
     return train_data, val_data, test_data, ip_channels, op_channels, seq_len
 
+class batchGenerator(object):
+
+    def __init__(self,data,batch_size,ip_channels,op_channels,seq_len):
+
+        self.data = data
+        self.batch_size = batch_size
+        self.ip_channels = ip_channels
+        self.op_channels = op_channels
+        self.seq_len = seq_len
+        self.cursor = 0
+        self.num_batches = int(len(self.data) / self.batch_size)
+
+    def get_num_batches(self):
+        return self.num_batches
+
+    def get_data_size(self):
+        return self.data.shape
+
+    def next(self):
+        temp = self.data[self.cursor*self.batch_size:(self.cursor+1)*self.batch_size,:]
+        x = temp[:,0:-self.op_channels]
+        y = temp[:,-self.op_channels:]
+        x = np.reshape(x,[self.batch_size,self.seq_len,self.ip_channels])
+
+        if self.cursor + 1 > self.num_batches:
+            self.data = np.random.permutation(self.data)
+        self.cursor = (self.cursor+1)%self.num_batches
+
+        return x,y
+
+class balBatchGenerator(object):
+
+    def __init__(self,data,batch_size,ip_channels,op_channels,seq_len):
+
+        self.data = data
+        self.batch_size = batch_size
+        self.ip_channels = ip_channels
+        self.op_channels = op_channels
+        self.seq_len = seq_len
+        self.cursor = 0
+
+        # determine unbalanced ratio
+        labels = np.argmax(data[:,-self.op_channels])
+        uniq_labels, uniq_idx, label_count = np.unique(labels,return_inverse=True,return_counts=True)
+        label_ratio = np.divide(label_count,len(labels))
+
+        # data for each label
+
+        # for given batch_size determine size of each label
+        label_ratio_batch = [np.floor(x*self.batch_size) for x in label_ratio.tolist()]
+        diff = self.batch_size - sum(label_ratio_batch)
+        i = 0
+        while diff > 0:
+            label_ratio_batch[i] += 1
+            diff -= 1
+            i += 1
+
+
+
+
+
+
 
 def low_pass_and_subsample(data,wind_len=[5,10,15],sample_rate=[2,3,4]):
     '''
@@ -328,3 +359,17 @@ def low_pass_and_subsample(data,wind_len=[5,10,15],sample_rate=[2,3,4]):
             data_new[:,j] = np.hstack((data_new[:,j],temp))
 
     return data_new, sub_sampled_lens
+
+def freq_transform(data):
+    '''
+    Return the dct of power spectrum of the time series signal.
+    Closely analogous to MFCC computation for speech signals
+    :return:
+    '''
+
+
+
+
+
+
+

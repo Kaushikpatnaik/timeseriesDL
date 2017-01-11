@@ -6,6 +6,20 @@ File containing implementation of layers not implemented in tensorflow
 
 import tensorflow as tf
 
+def weighted_cross_entropy(weights,logits,labels):
+    '''
+    Compute the weighted cross entropy provided the weights for each class
+    :param weights: tf.constant of shape (num_classes x 1)
+    :param logits: pre-softmax final layer output from the NN
+    :param labels: one-hot encoding of the labels
+    :return: weighted cross entropy loss
+    '''
+
+    weight_per_example = tf.transpose(labels,tf.transpose(weights))
+    reg_cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits,labels)
+
+    return tf.reduce_mean(tf.mul(weight_per_example,reg_cross_entropy))
+
 def activation_summary(var):
     with tf.name_scope('summary'):
         tensor_name = var.op.name
