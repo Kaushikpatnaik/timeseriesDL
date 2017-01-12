@@ -308,7 +308,6 @@ class balBatchGenerator(object):
 
     def __init__(self,data,batch_size,ip_channels,op_channels,seq_len):
 
-        self.data = data
         self.batch_size = batch_size
         self.ip_channels = ip_channels
         self.op_channels = op_channels
@@ -316,26 +315,54 @@ class balBatchGenerator(object):
         self.cursor = 0
 
         # determine unbalanced ratio
-        labels = np.argmax(data[:,-self.op_channels])
-        uniq_labels, uniq_idx, label_count = np.unique(labels,return_inverse=True,return_counts=True)
-        label_ratio = np.divide(label_count,len(labels))
-
-        # data for each label
+        labels = np.argmax(data[:,-self.op_channels:],axis=1)
+        self.uniq_labels, uniq_idx, label_count = np.unique(labels,return_inverse=True,return_counts=True)
+        #print self.uniq_labels, label_count
+        label_ratio = [x/len(self.uniq_labels) for x in [1.0]*len(self.uniq_labels)]
 
         # for given batch_size determine size of each label
-        label_ratio_batch = [np.floor(x*self.batch_size) for x in label_ratio.tolist()]
-        diff = self.batch_size - sum(label_ratio_batch)
+        self.label_ratio_batch = [int(np.floor(x*self.batch_size)) for x in label_ratio]
+        diff = self.batch_size - sum(self.label_ratio_batch)
         i = 0
         while diff > 0:
-            label_ratio_batch[i] += 1
+            self.label_ratio_batch[i] += 1
             diff -= 1
             i += 1
+        print self.label_ratio_batch
 
+        self.label_idx_data = {}
+        self.label_counter = {}
+        for i in self.uniq_labels:
+            self.label_idx_data[i] = data[labels==i,:]
+            self.label_counter[i] = 0
 
+        self.min_count_class = self.uniq_labels[np.argmax(label_count)]
+        self.min_count = min(label_count)
 
+    def next(self):
 
+        ret_batch = np.zeros((self.batch_size,self.ip_channels*self.seq_len+self.op_channels))
+        acc_ratio = 0
+        for i,ratio in zip(self.uniq_labels,self.label_ratio_batch):
+            temp = self.label_idx_data[i]
+            ret_batch[acc_ratio:acc_ratio+ratio,:] = temp[:ratio,:]
+            acc_ratio += ratio
+            self.label_counter[i] += ratio
 
+        x = ret_batch[:,0:-self.op_channels]
+        y = ret_batch[:,-self.op_channels:]
+        x = np.reshape(x,[self.batch_size,self.seq_len,self.ip_channels])
 
+        if self.label_counter[self.min_count_class] + 1 > self.min_count:
+            for i in self.uniq_labels:
+                self.label_idx_data[i] = np.random.permutation(self.label_idx_data[i])
+                self.label_counter[i] = 0
+
+        #labels_batch = np.argmax(y,axis=1)
+        #batch_uniq_labels, batch_label_count = np.unique(labels_batch, return_counts=True)
+        #print batch_uniq_labels, batch_label_count
+
+        return x,y
 
 def low_pass_and_subsample(data,wind_len=[5,10,15],sample_rate=[2,3,4]):
     '''
