@@ -38,10 +38,9 @@ def run_train_epoch(session, model, data, args, max_batches,sess_summary):
     '''
 
     start_time = time.time()
-    row, col = data.get_data_size()
-    softmax_op = np.zeros((row,args.op_channels))
+    softmax_op = np.zeros((max_batches*model.batch_size,args.op_channels))
     cost_trajectory = []
-    y_onehot = np.zeros((row,args.op_channels))
+    y_onehot = np.zeros((max_batches*model.batch_size,args.op_channels))
     epoch_cost = 0.0
 
     for i in range(max_batches):
@@ -72,9 +71,8 @@ def run_val_test_epoch(session, model, data, args, max_batches,sess_summary):
     '''
 
     start_time = time.time()
-    row, col = data.get_data_size()
-    softmax_op = np.zeros((row,args.op_channels))
-    y_onehot = np.zeros((row,args.op_channels))
+    softmax_op = np.zeros((max_batches*model.batch_size,args.op_channels))
+    y_onehot = np.zeros((max_batches*model.batch_size,args.op_channels))
 
     print type(model.input_layer_x), type(model.summaries), type(model.output_prob)
 

@@ -15,10 +15,14 @@ def weighted_cross_entropy(weights,logits,labels):
     :return: weighted cross entropy loss
     '''
 
-    weight_per_example = tf.transpose(labels,tf.transpose(weights))
-    reg_cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits,labels)
+    with tf.name_scope('weighted_cross_entropy'):
 
-    return tf.reduce_mean(tf.mul(weight_per_example,reg_cross_entropy))
+        class_weights = tf.constant(weights,dtype=tf.float32)
+
+        weight_per_example = tf.transpose(tf.mul(labels,class_weights))
+        reg_cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits,labels)
+
+        return tf.reduce_mean(tf.mul(weight_per_example,reg_cross_entropy))
 
 def activation_summary(var):
     with tf.name_scope('summary'):

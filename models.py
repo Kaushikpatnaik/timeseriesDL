@@ -189,6 +189,9 @@ class oneDMultiChannelCNN(object):
         self.mode = args.mode
         self.batch_size = args.batch_size
         self.class_weights = args.weights
+        self.ss1_len = args.sub_sample_len[0]
+        self.ss2_len = args.sub_sample_len[1]
+        self.ss3_len = args.sub_sample_len[2]
 
     def build_graph(self):
 

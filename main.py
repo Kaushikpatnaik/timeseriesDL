@@ -69,22 +69,22 @@ def main():
     print train_data.shape
 
     if args_model.model == 'oneDMultiChannelCNN':
-        train_data_new, sub_sample_lens = low_pass_and_subsample(train_data)
-        val_data_new, sub_sample_lens = low_pass_and_subsample(val_data)
-        test_data_new, sub_sample_lens = low_pass_and_subsample(test_data)
+        train_data_new, args_model.sub_sample_lens = low_pass_and_subsample(train_data)
+        val_data_new, args_model.sub_sample_lens = low_pass_and_subsample(val_data)
+        test_data_new, args_model.sub_sample_lens = low_pass_and_subsample(test_data)
     if args_model.model == 'freqCNN':
         train_data_new = freq_transform(train_data)
         val_data_new = freq_transform(val_data)
         test_data_new = freq_transform(test_data)
 
-    batch_train = batchGenerator(train_data, args_data.batch_size, args_data.ip_channels,
+    batch_train = balBatchGenerator(train_data, args_data.batch_size, args_data.ip_channels,
                                  args_data.op_channels, args_data.seq_len)
-    args_model.max_batches_train = batch_train.get_num_batches()
+    args_model.max_batches_train = 30
     args_model.ip_channels = args_data.ip_channels
     args_model.op_channels = args_data.op_channels
     args_model.seq_len = args_data.seq_len
     args_model.batch_size = args_data.batch_size
-    args_model.weights = tf.constant([1,1,1,1,1,1,1,1,1,1])
+    args_model.weights = [1,1,1,1,1,1,1,1,1,1]
 
     # train and return the saved trainable parameters of the model
     train(args_model,batch_train)
