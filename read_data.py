@@ -113,9 +113,12 @@ class blackblazeReader(object):
         res_data = []
         res_label = []
         for serial in serialList:
-            t_data = data[data['serial_number']==serial]
+            t_data = data[data['serial_number']==serial].sort_values('date')
             t_label = t_data['failure'].values.tolist()
-            t_data = t_data.drop(['serial_number','date','model','capacity_bytes','failure'],axis=1).values
+            t_data = t_data[['smart_5_raw','smart_183_raw','smart_184_raw','smart_187_raw','smart_188_raw','smart_193_raw','smart_197_raw']].interpolate(method='linear')
+            t_data_diff = t_data.diff(1).fillna(0)
+            t_data_diff.columns = ['smart_5_raw_diff','smart_183_raw_diff','smart_184_raw_diff','smart_187_raw_diff','smart_188_raw_diff','smart_193_raw_diff','smart_197_raw_diff']
+            t_data = pd.concat([t_data,t_data_diff],axis=1)
             row,col = t_data.shape
             for i in range(self.args.hist,row):
                 #print t_data[i-self.args.hist:i,:].flatten()
@@ -228,22 +231,22 @@ def get_data_obj(args):
         # These options only work if you are creating a new dataset
         # TODO: Need to find better way to do this
         args.drive_model = 'ST3000DM001'
-        args.hist = 5
+        args.hist = 4
         args.pred_window = 3
         args.op_channels = 2
 
 
-        # backblaze_data = blackblazeReader(args)
-        # train, val, test = backblaze_data.train_test_split(args.split_ratio)
+        backblaze_data = blackblazeReader(args)
+        train, val, test = backblaze_data.train_test_split(args.split_ratio)
 
         # Saved the train, val and test sets for future work, as they take a lot of time to prepare
-        # cPickle.dump(train, open('./data/backblaze_' + str(args.drive_model) + '_train.pkl','w'))
-        # cPickle.dump(val, open('./data/backblaze_' + str(args.drive_model) + '_val.pkl', 'w'))
-        # cPickle.dump(test, open('./data/backblaze_' + str(args.drive_model) + '_test.pkl', 'w'))
+        cPickle.dump(train, open('./data/backblaze/processed_data/' + str(args.drive_model) + '_train.pkl','w'))
+        cPickle.dump(val, open('./data/backblaze/processesed_data' + str(args.drive_model) + '_val.pkl', 'w'))
+        cPickle.dump(test, open('./data/backblaze/processed_data' + str(args.drive_model) + '_test.pkl', 'w'))
 
-        train_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
-        val_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
-        test_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+        #train_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+        #val_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+        #test_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
 
         op_channels = 2
         seq_len = 5
@@ -393,6 +396,17 @@ def freq_transform(data):
     Closely analogous to MFCC computation for speech signals
     :return:
     '''
+
+    data_fft = np.zeros(data.shape)
+    for i in range(data.shape[0]):
+        data_fft[i,:] = np.fft.fft(data[:,i]).real
+
+    return data_fft
+
+
+
+
+
 
 
 

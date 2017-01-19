@@ -10,7 +10,7 @@ from collections import OrderedDict
 
 class data_args(object):
 
-    dataset = 'mnist'
+    dataset = 'backblaze'
     batch_size = 64
 
 class dnn_args(object):
@@ -26,9 +26,9 @@ class lstm_args(object):
 
     cell = 'lstm'
     num_layers = 1
-    hidden_units = 32
-    num_epochs = 2
-    lr_rate = 2e-05
+    hidden_units = 8
+    num_epochs = 10
+    lr_rate = 0.001
     lr_decay = 0.97
     grad_clip = 5.0
     logdir = './logs/lstm'
@@ -72,19 +72,23 @@ def main():
         train_data_new, args_model.sub_sample_lens = low_pass_and_subsample(train_data)
         val_data_new, args_model.sub_sample_lens = low_pass_and_subsample(val_data)
         test_data_new, args_model.sub_sample_lens = low_pass_and_subsample(test_data)
-    if args_model.model == 'freqCNN':
+    elif args_model.model == 'freqCNN':
         train_data_new = freq_transform(train_data)
         val_data_new = freq_transform(val_data)
         test_data_new = freq_transform(test_data)
+    else:
+        train_data_new = train_data
+        val_data_new = val_data
+        test_data_new = test_data
 
-    batch_train = balBatchGenerator(train_data, args_data.batch_size, args_data.ip_channels,
+    batch_train = balBatchGenerator(train_data_new, args_data.batch_size, args_data.ip_channels,
                                  args_data.op_channels, args_data.seq_len)
     args_model.max_batches_train = 30
     args_model.ip_channels = args_data.ip_channels
     args_model.op_channels = args_data.op_channels
     args_model.seq_len = args_data.seq_len
     args_model.batch_size = args_data.batch_size
-    args_model.weights = [1,1,1,1,1,1,1,1,1,1]
+    args_model.weights = [0.1,1]
 
     # train and return the saved trainable parameters of the model
     train(args_model,batch_train)
@@ -93,7 +97,7 @@ def main():
     print "Validation DataSet Shape: "
     print val_data.shape
 
-    batch_val = batchGenerator(val_data,64, args_data.ip_channels, args_data.op_channels, args_data.seq_len)
+    batch_val = batchGenerator(val_data_new,64, args_data.ip_channels, args_data.op_channels, args_data.seq_len)
     args_model.max_batches_val = batch_val.get_num_batches()
     args_model.batch_size = 64
 
