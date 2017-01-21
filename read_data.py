@@ -89,13 +89,19 @@ class blackblazeReader(object):
         if os.path.exists(self.args.dirloc):
 
             data = pd.DataFrame([])
+            stats = pd.DataFrame([],columns=['model','serial_number','failure'])
             filenamelist = os.listdir(self.args.dirloc)
             for filename in filenamelist:
                 print filename, filename[-3:]
                 if os.path.isfile(os.path.join(self.args.dirloc,filename)) and (filename[-3:]=='csv'):
                     t_data = pd.read_csv(os.path.join(self.args.dirloc,filename))
+                    t2_data = t_data[['model','serial_number','failure']].drop_duplicates()
                     t_data = t_data[t_data['model']==self.args.drive_model]
                     data = data.append(t_data)
+                    stats = stats.append(t2_data)
+
+            print stats.groupby(['model','failure'])['serial_number'].size().reset_index().to_csv('./logs/model_failure_statistics.csv')
+
             return data
         else:
             raise ValueError("Directory does not exist")
@@ -164,10 +170,10 @@ class blackblazeReader(object):
 
         data_serials = data['serial_number'].drop_duplicates()
 
-        print "Overall Failure Statistics: "
-        print data.groupby('failure')['serial_number'].size().reset_index()
-
         data_serial_label = data.groupby('serial_number')['failure'].sum().reset_index()
+
+        print "Overall Failure Statistics: "
+        print data_serial_label.groupby('failure')['serial_number'].size().reset_index()
 
         assert(len(data_serials)==len(data_serial_label))
 

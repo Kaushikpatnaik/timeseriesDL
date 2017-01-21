@@ -24,6 +24,36 @@ def weighted_cross_entropy(weights,logits,labels):
 
         return tf.reduce_mean(tf.mul(weight_per_example,reg_cross_entropy))
 
+
+def weighted_sequence_loss_by_example(logits, targets, seq_weights, average_across_time=True, scope=None):
+    '''
+    A simple version of weighted sequence loss measured in sequence
+    :param logits: output from te NN
+    :param targets: one-hot encoding of the output class
+    :param seq_weights: combines class weighting and weighting of the sequence losses (if need to give importance to the final output)
+    :param average_across_time: average the loss across time ?
+    :param scope: name of the op is desired
+    :return:
+    '''
+    if len(logits) != len(targets) or len(seq_weights) != len(logits):
+        raise ValueError("Lenghts of logits, weights and target must be same "
+                     "%d, %d, %d" %len(logits), len(seq_weights), len(targets))
+
+    with tf.variable_scope(scope or "sequence_loss_by_example"):
+        sequence_loss_list = []
+        for logit, target, weight in zip(logits, targets, seq_weights):
+            loss = tf.nn.softmax_cross_entropy_with_logits(logit,target)
+            # tensorflow !!!
+            weighted_loss = tf.multiply(loss,tf.reshape(weight,[-1]))
+            sequence_loss_list.append(weighted_loss)
+        sequence_loss = tf.add_n(sequence_loss_list)
+        if average_across_time:
+            total_weight = tf.reshape(tf.add_n(seq_weights) + 1e-12,[-1])
+            final_loss = tf.divide(sequence_loss,total_weight)
+        else:
+            final_loss = sequence_loss
+        return final_loss
+
 def activation_summary(var):
     with tf.name_scope('summary'):
         tensor_name = var.op.name

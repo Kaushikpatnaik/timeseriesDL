@@ -27,13 +27,26 @@ class lstm_args(object):
 
     cell = 'lstm'
     num_layers = 1
-    hidden_units = 8
-    num_epochs = 2
+    hidden_units = 32
+    num_epochs = 10
     lr_rate = 0.001
     lr_decay = 0.97
     grad_clip = 5.0
     logdir = './logs/lstm'
     model = 'LSTM'
+
+class lstmtr_args(object):
+
+    cell = 'lstm'
+    num_layers = 1
+    hidden_units = 32
+    num_epochs = 10
+    lr_rate = 0.001
+    lr_decay = 0.97
+    grad_clip = 5.0
+    logdir = './logs/lstm_tr'
+    model = 'LSTM_TR'
+
 
 class cnn_args(object):
 
@@ -60,7 +73,7 @@ class cnn_multi_args(object):
 def main():
 
     args_data = data_args()
-    args_model = lstm_args()
+    args_model = lstmtr_args()
 
     # based on the args_data parameters determine the dataset to be downloaded and split
     train_data, val_data, test_data, args_data.ip_channels, args_data.op_channels, args_data.seq_len = get_data_obj(args_data)

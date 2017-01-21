@@ -104,6 +104,8 @@ def train(args,batch_train):
                 train_model = oneDCNN(args)
             elif args.model == 'LSTM':
                 train_model = LSTM(args)
+            elif args.model == 'LSTM_TR':
+                train_model = LSTMTargetReplication(args)
             else:
                 raise ValueError("model specified has not been implemented")
 
@@ -152,11 +154,13 @@ def val(args,batch_val,mode):
                 val_model = oneDCNN(args)
             elif args.model == 'LSTM':
                 val_model = LSTM(args)
+            elif args.model == 'LSTM_TR':
+                val_model = LSTMTargetReplication(args)
             else:
                 raise ValueError("model specified has not been implemented")
 
             val_model.build_graph()
-            if args.model == 'LSTM':
+            if args.model == 'LSTM' or args.model == 'LSTM_TR':
                 val_model.initialize_state(session)
 
             val_writer = tf.summary.FileWriter(args.logdir+'/val',session.graph)
