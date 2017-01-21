@@ -12,12 +12,13 @@ class data_args(object):
 
     dataset = 'backblaze'
     batch_size = 64
+    split_ratio = [0.8,0.1,0.1]
 
 class dnn_args(object):
 
     layer_sizes = [64,32,16]
     num_epochs = 2
-    lr_rate = 1e-03
+    lr_rate = 0.001
     lr_decay = 0.97
     logdir = './logs/dnn'
     model = 'fullDNNNoHistory'
@@ -27,7 +28,7 @@ class lstm_args(object):
     cell = 'lstm'
     num_layers = 1
     hidden_units = 8
-    num_epochs = 10
+    num_epochs = 2
     lr_rate = 0.001
     lr_decay = 0.97
     grad_clip = 5.0
@@ -37,8 +38,8 @@ class lstm_args(object):
 class cnn_args(object):
 
     num_layers = 3
-    num_epochs = 5
-    lr_rate = 1e-03
+    num_epochs = 10
+    lr_rate = 0.001
     lr_decay = 0.97
     logdir = './logs/cnn'
     layer_params = OrderedDict({'3_full': (64), '2_conv': (3,16,[1,1,1],'VALID'), '1_conv': (3,32,[1,1,1],'VALID')})
@@ -47,8 +48,8 @@ class cnn_args(object):
 class cnn_multi_args(object):
 
     num_layers = 3
-    num_epochs = 5
-    lr_rate = 1e-03
+    num_epochs = 10
+    lr_rate = 0.001
     lr_decay = 0.97
     logdir = './logs/cnn'
     layer_params = OrderedDict({'3_full': (64), '2_conv': (3,16,[1,1,1],'VALID'), '1_conv': (3,32,[1,1,1],'VALID')})
@@ -81,14 +82,14 @@ def main():
         val_data_new = val_data
         test_data_new = test_data
 
-    batch_train = balBatchGenerator(train_data_new, args_data.batch_size, args_data.ip_channels,
+    batch_train = batchGenerator(train_data_new, args_data.batch_size, args_data.ip_channels,
                                  args_data.op_channels, args_data.seq_len)
-    args_model.max_batches_train = 30
+    args_model.max_batches_train = batch_train.get_num_batches()
     args_model.ip_channels = args_data.ip_channels
     args_model.op_channels = args_data.op_channels
     args_model.seq_len = args_data.seq_len
     args_model.batch_size = args_data.batch_size
-    args_model.weights = [0.1,1]
+    args_model.weights = [1.0/400,1]
 
     # train and return the saved trainable parameters of the model
     train(args_model,batch_train)

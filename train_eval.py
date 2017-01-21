@@ -173,5 +173,7 @@ def val(args,batch_val,mode):
             print "Confusion metrics post Validation"+args.mode+" :"
             print compConfusion(y_prob, y_onehot)
 
+            rocPrAuc(y_prob,y_onehot,args.logdir,'val')
+
             val_writer.close()
 

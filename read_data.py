@@ -5,6 +5,7 @@ import os
 
 from tensorflow.examples.tutorials.mnist import input_data
 import cPickle
+from sklearn.preprocessing import MinMaxScaler
 
 class ucrDataReader(object):
     '''
@@ -118,12 +119,12 @@ class blackblazeReader(object):
             t_data = t_data[['smart_5_raw','smart_183_raw','smart_184_raw','smart_187_raw','smart_188_raw','smart_193_raw','smart_197_raw']].interpolate(method='linear')
             t_data_diff = t_data.diff(1).fillna(0)
             t_data_diff.columns = ['smart_5_raw_diff','smart_183_raw_diff','smart_184_raw_diff','smart_187_raw_diff','smart_188_raw_diff','smart_193_raw_diff','smart_197_raw_diff']
-            t_data = pd.concat([t_data,t_data_diff],axis=1)
+            t_data = pd.concat([t_data,t_data_diff],axis=1).values
             row,col = t_data.shape
             for i in range(self.args.hist,row):
                 #print t_data[i-self.args.hist:i,:].flatten()
                 res_label.append(t_label[i])
-                res_data.append(t_data[i-self.args.hist:i+1,:].flatten())
+                res_data.append(t_data[i-self.args.hist:i,:].flatten())
 
         res_data = np.array(res_data)
         res_label = np.array(res_label).reshape(len(res_label),1)
@@ -234,23 +235,30 @@ def get_data_obj(args):
         args.hist = 4
         args.pred_window = 3
         args.op_channels = 2
+        args.dirloc = './data/backblaze/raw_data/'
+        args.split_ratio = [0.8,0.1,0.1]
 
 
-        backblaze_data = blackblazeReader(args)
-        train, val, test = backblaze_data.train_test_split(args.split_ratio)
+        #backblaze_data = blackblazeReader(args)
+        #train_data, val_data, test_data = backblaze_data.train_test_split(args.split_ratio)
 
         # Saved the train, val and test sets for future work, as they take a lot of time to prepare
-        cPickle.dump(train, open('./data/backblaze/processed_data/' + str(args.drive_model) + '_train.pkl','w'))
-        cPickle.dump(val, open('./data/backblaze/processesed_data' + str(args.drive_model) + '_val.pkl', 'w'))
-        cPickle.dump(test, open('./data/backblaze/processed_data' + str(args.drive_model) + '_test.pkl', 'w'))
+        #cPickle.dump(train_data, open('./data/backblaze/processed_data/' + str(args.drive_model) + '_train.pkl','w'))
+        #cPickle.dump(val_data, open('./data/backblaze/processed_data/' + str(args.drive_model) + '_val.pkl', 'w'))
+        #cPickle.dump(test_data, open('./data/backblaze/processed_data/' + str(args.drive_model) + '_test.pkl', 'w'))
 
-        #train_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
-        #val_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
-        #test_data = cPickle.load(open('./data/backblaze/processed_data/backblaze_' + str(args.drive_model) + '_train.pkl', 'rb'))
+        train_data = cPickle.load(open('./data/backblaze/processed_data/' + str(args.drive_model) + '_train.pkl', 'rb'))
+        val_data = cPickle.load(open('./data/backblaze/processed_data/' + str(args.drive_model) + '_val.pkl', 'rb'))
+        test_data = cPickle.load(open('./data/backblaze/processed_data/' + str(args.drive_model) + '_test.pkl', 'rb'))
 
         op_channels = 2
-        seq_len = 5
-        ip_channels = 108
+        seq_len = args.hist
+        ip_channels = 14
+
+        scaler = MinMaxScaler()
+        train_data = scaler.fit_transform(train_data)
+        val_data = scaler.transform(val_data)
+        test_data = scaler.transform(test_data)
 
     elif args.dataset == 'electric':
 
