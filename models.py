@@ -76,7 +76,6 @@ class oneDCNN(object):
         print self.layer_params
 
         # iteratively build the layers
-        # TODO: Check with tensorboard if this is being done accurately
         for i in range(self.num_layers):
             if self.layer_params.keys()[i].split('_')[1] == 'conv':
 

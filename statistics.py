@@ -36,8 +36,8 @@ def rocPrAuc(op_prob,y_onehot,logdir,folder):
 
     y_true = np.argmax(y_onehot,axis=1)
 
-    auc_score = roc_auc_score(y_onehot,op_prob)
-    pr_score = average_precision_score(y_onehot,op_prob)
+    auc_score = roc_auc_score(y_true,op_prob[:,1])
+    pr_score = average_precision_score(y_true,op_prob[:,1])
 
     # Plotted curves for the failure class only
     prec1, recall1, thres1 = precision_recall_curve(y_true,op_prob[:,1])
@@ -46,7 +46,7 @@ def rocPrAuc(op_prob,y_onehot,logdir,folder):
     fig, axes = plt.subplots(nrows=1,ncols=2)
     axes[0].plot(prec1,recall1)
     axes[1].plot(prec2,recall2)
-    axes[0].set_title('ROC Curve '+str(auc_score))
-    axes[1].set_title('PR Curve '+str(pr_score))
+    axes[1].set_title('ROC Curve '+str(auc_score))
+    axes[0].set_title('PR Curve '+str(pr_score))
     plt.savefig(logdir+'/'+folder+'/roc_auc_curves.png')
     plt.show()

@@ -238,6 +238,7 @@ def get_data_obj(args):
         # These options only work if you are creating a new dataset
         # TODO: Need to find better way to do this
         args.drive_model = 'ST3000DM001'
+        #args.drive_model = 'ST4000DM000'
         args.hist = 4
         args.pred_window = 3
         args.op_channels = 2
