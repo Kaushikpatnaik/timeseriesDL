@@ -189,7 +189,6 @@ class lstmLayer(object):
             # Overall there are four set of input to hidden weights, and four set of hidden to hidden weights
             # All of them can be processed together as part of one array operation or by creating a function and
             # scoping the results appropriately
-            # TODO: Kaushik Add initialization schemes
             def sum_inputs(input_data, h, scope):
                 with tf.variable_scope(scope):
                     ip2hiddenW = tf.get_variable('ip2hidden',

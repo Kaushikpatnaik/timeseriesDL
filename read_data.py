@@ -69,6 +69,17 @@ class ucrDataReader(object):
 
         return train, val, test
 
+class phmReader(object):
+
+    def __init__(self,args):
+        '''
+        Class to read and load the phm08 dataset
+        '''
+
+        self.args = args
+
+    def _mode_to_data(self):
+        raise NotImplementedError
 
 class blackblazeReader(object):
 
@@ -267,6 +278,10 @@ def get_data_obj(args):
         val_data = scaler.transform(val_data)
         test_data = scaler.transform(test_data)
 
+    elif args.dataset == 'phm08':
+        raise NotImplementedError
+
+
     elif args.dataset == 'electric':
 
         op_channels = 7
@@ -324,26 +339,31 @@ class batchGenerator(object):
 
 class balBatchGenerator(object):
 
-    def __init__(self,data,batch_size,ip_channels,op_channels,seq_len):
+    def __init__(self,data,batch_size,ip_channels,op_channels,seq_len,label_ratio):
 
         self.batch_size = batch_size
         self.ip_channels = ip_channels
         self.op_channels = op_channels
         self.seq_len = seq_len
         self.cursor = 0
+        self.label_ratio = label_ratio
 
         # determine unbalanced ratio
         labels = np.argmax(data[:,-self.op_channels:],axis=1)
         self.uniq_labels, uniq_idx, label_count = np.unique(labels,return_inverse=True,return_counts=True)
-        #print self.uniq_labels, label_count
-        label_ratio = [x/len(self.uniq_labels) for x in [1.0]*len(self.uniq_labels)]
+        print self.uniq_labels, label_count
 
         # for given batch_size determine size of each label
-        self.label_ratio_batch = [int(np.floor(x*self.batch_size)) for x in label_ratio]
-        diff = self.batch_size - sum(self.label_ratio_batch)
+        self.label_ratio_batch = {}
+        for label,ratio in label_ratio.items():
+            self.label_ratio_batch[label] = int(np.floor(ratio*self.batch_size))
+        diff = self.batch_size - sum(self.label_ratio_batch.values())
+        print self.label_ratio_batch
+
         i = 0
         while diff > 0:
-            self.label_ratio_batch[i] += 1
+            label = self.label_ratio_batch.keys()[i]
+            self.label_ratio_batch[label] += 1
             diff -= 1
             i += 1
         print self.label_ratio_batch
@@ -361,7 +381,7 @@ class balBatchGenerator(object):
 
         ret_batch = np.zeros((self.batch_size,self.ip_channels*self.seq_len+self.op_channels))
         acc_ratio = 0
-        for i,ratio in zip(self.uniq_labels,self.label_ratio_batch):
+        for i,ratio in self.label_ratio_batch.items():
             temp = self.label_idx_data[i]
             ret_batch[acc_ratio:acc_ratio+ratio,:] = temp[:ratio,:]
             acc_ratio += ratio
@@ -371,10 +391,11 @@ class balBatchGenerator(object):
         y = ret_batch[:,-self.op_channels:]
         x = np.reshape(x,[self.batch_size,self.seq_len,self.ip_channels])
 
-        if self.label_counter[self.min_count_class] + 1 > self.min_count:
-            for i in self.uniq_labels:
-                self.label_idx_data[i] = np.random.permutation(self.label_idx_data[i])
-                self.label_counter[i] = 0
+        # TODO: It's possible this mechanism results in some observations from the major label being missed
+        for key,val in self.label_idx_data.items():
+            if self.label_counter[key] + 1 > len(val):
+                self.label_idx_data[key] = np.random.permutation(self.label_idx_data[key])
+                self.label_counter[key] = 0
 
         #labels_batch = np.argmax(y,axis=1)
         #batch_uniq_labels, batch_label_count = np.unique(labels_batch, return_counts=True)
