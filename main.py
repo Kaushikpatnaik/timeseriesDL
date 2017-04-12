@@ -1,10 +1,10 @@
 import tensorflow as tf
 import argparse
 
-import numpy as np
+
 from read_data import *
 from train_eval import *
-import json
+import time
 from collections import OrderedDict, defaultdict
 from utils import *
 
@@ -33,18 +33,20 @@ def main():
     data_list = ['blackblaze','electric']
     model_list = ['cnn','multi_cnn','lstm','lstm_tr','dnn']
 
+    today = time.strftime("%d/%m/%Y %H:%M:%S")
+    logdir = './logs/'+today+'/'
+
     for itr_data, itr_model in product(data_list,model_list):
 
         print "Running model: "+str(itr_model)+" for dataset: "+str(itr_data)
 
         # grid of params for the data and the model
-        args_data = param(data_args[itr_data])
-        args_model = param(model_args[itr_model])
+        args_data = paramGrid(data_args[itr_data])
+        args_model = paramGrid(model_args[itr_model])
 
         # Each model may have a grid of parameters to check over
         # There may be data parameters for each dataset also !
         # ideally the data for such a grid check should be consistent in terms of train, val and test split
-
         for data_param in args_data:
 
             # based on the data_param determine the dataset to be downloaded and split
@@ -52,8 +54,8 @@ def main():
 
             for model_param in args_model:
 
-
-
+                # update the logdir
+                logdir += ''
 
                 # Training section
                 print "Training Dataset Shape: "
@@ -74,31 +76,27 @@ def main():
                     test_data_new = test_data
                 '''
 
-                label_ratio = param['label_ratio']
-                batch_train = balBatchGenerator(train_data_new, args_data.batch_size, args_data.ip_channels,
-                                                args_data.op_channels, args_data.seq_len, label_ratio)
+                batch_train = balBatchGenerator(train_data, data_param['batch_size'], ip_channel,
+                                                op_channel, seq_len, data_param['label_ratio'])
 
-                batch_val = batchGenerator(val_data_new, 64, args_data.ip_channels, args_data.op_channels, args_data.seq_len)
+                batch_val = batchGenerator(val_data, data_param['batch_size'], ip_channel, op_channel, seq_len)
 
-                args_model.max_batches_train = args_data['max_batches_train']
-                args_model.ip_channels = args_data.ip_channels
-                args_model.op_channels = args_data.op_channels
-                args_model.seq_len = args_data.seq_len
-                args_model.batch_size = args_data.batch_size
-                args_model.weights = [1.0/5,1.0]
+                model_param['max_batches_train'] = data_param['max_batches_train']
+                model_param['ip_channels'] = ip_channel
+                model_param['op_channels'] = op_channel
+                model_param['seq_len'] = seq_len
+                model_param['batch_size'] = data_param['batch_size']
+                model_param['weights'] = [1.0/5,1.0]
 
                 # train and return the saved trainable parameters of the model
-                train(args_model,batch_train)
+                train(itr_model, model_param, batch_train, logdir)
 
                 # Validation section
                 print "Validation DataSet Shape: "
                 print val_data.shape
 
-
-                args_model.max_batches_val = batch_val.get_num_batches()
-                args_model.batch_size = 64
-
-                val(args_model,batch_val,"val")
+                model_param['max_batches_val'] = batch_val.get_num_batches()
+                val(itr_model, model_param, batch_val, "val", logdir)
 
 
 if __name__ == "__main__":

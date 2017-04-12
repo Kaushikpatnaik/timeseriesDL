@@ -32,15 +32,15 @@ def print_tensors_in_checkpoint_file(file_name):
                 "with SNAPPY.")
 
 
-def run_train_epoch(session, model, data, args, max_batches,sess_summary):
+def run_train_epoch(session, model, data, max_batches,sess_summary):
     '''
     Run the model under given session for max_batches based on args
     '''
 
     start_time = time.time()
-    softmax_op = np.zeros((max_batches*model.batch_size,args.op_channels))
+    softmax_op = np.zeros((max_batches*model.batch_size,model.op_channels))
     cost_trajectory = []
-    y_onehot = np.zeros((max_batches*model.batch_size,args.op_channels))
+    y_onehot = np.zeros((max_batches*model.batch_size,model.op_channels))
     epoch_cost = 0.0
 
     for i in range(max_batches):
@@ -65,14 +65,14 @@ def run_train_epoch(session, model, data, args, max_batches,sess_summary):
 
     return softmax_op, y_onehot, cost_trajectory
 
-def run_val_test_epoch(session, model, data, args, max_batches,sess_summary):
+def run_val_test_epoch(session, model, data, max_batches,sess_summary):
     '''
     Run the model under given session for max_batches based on args
     '''
 
     start_time = time.time()
-    softmax_op = np.zeros((max_batches*model.batch_size,args.op_channels))
-    y_onehot = np.zeros((max_batches*model.batch_size,args.op_channels))
+    softmax_op = np.zeros((max_batches*model.batch_size,model.op_channels))
+    y_onehot = np.zeros((max_batches*model.batch_size,model.op_channels))
 
     print type(model.input_layer_x), type(model.summaries), type(model.output_prob)
 
@@ -90,48 +90,48 @@ def run_val_test_epoch(session, model, data, args, max_batches,sess_summary):
 
     return softmax_op, y_onehot
 
-def train(args,batch_train):
+def train(model_opt, model_args, batch_train, logdir):
 
     # Initialize session and graph
     with tf.Graph().as_default(), tf.Session() as session:
 
         with tf.variable_scope("model", reuse=None):
 
-            args.mode = 'train'
-            if args.model == 'fullDNNNoHistory':
-                train_model = fullDNNNoHistory(args)
-            elif args.model == 'oneDCNN':
-                train_model = oneDCNN(args)
-            elif args.model == 'LSTM':
-                train_model = LSTM(args)
-            elif args.model == 'LSTM_TR':
-                train_model = LSTMTargetReplication(args)
+            model_args['mode'] = 'train'
+            if model_opt == 'fullDNNNoHistory':
+                train_model = fullDNNNoHistory(model_args)
+            elif model_opt == 'oneDCNN':
+                train_model = oneDCNN(model_args)
+            elif model_opt == 'LSTM':
+                train_model = LSTM(model_args)
+            elif model_opt == 'LSTM_TR':
+                train_model = LSTMTargetReplication(model_args)
             else:
                 raise ValueError("model specified has not been implemented")
 
             train_model.build_graph()
             tf.initialize_all_variables().run()
 
-            train_writer = tf.summary.FileWriter(args.logdir+'/train',session.graph)
+            train_writer = tf.summary.FileWriter(logdir + '/train', session.graph)
             saver = tf.train.Saver()
             cost_over_batches = []
 
-            for i in range(args.num_epochs):
-                lr_decay = args.lr_decay ** max(i - 2.0, 0.0)
-                train_model.assign_lr(session, args.lr_rate * lr_decay)
+            for i in range(model_args['num_epochs']):
+                lr_decay = model_args['lr_decay'] ** max(i - 2.0, 0.0)
+                train_model.assign_lr(session, model_args['lr_rate'] * lr_decay)
 
                 # run a complete epoch and return appropriate variables
-                y_prob, y_onehot, y_cost = run_train_epoch(session, train_model, batch_train, args, args.max_batches_train,train_writer)
+                y_prob, y_onehot, y_cost = run_train_epoch(session, train_model, batch_train, model_args['max_batches_train'], train_writer)
 
                 print "Confusion metrics post epoch "+str(i)+" :"
                 print compConfusion(y_prob,y_onehot)
 
                 cost_over_batches += y_cost
 
-                if i%5 ==0:
-                    saver.save(session,args.logdir+'/train/train-model-iter',global_step=i)
+                if i == model_args['num_epoch']/2:
+                    saver.save(session, logdir + '/train/train-model-iter', global_step=i)
 
-            saver.save(session,args.logdir+'/train/final-model')
+            saver.save(session, logdir + '/train/final-model')
             train_writer.close()
 
             plt.plot(np.linspace(1,len(cost_over_batches),len(cost_over_batches)),cost_over_batches)
@@ -140,44 +140,44 @@ def train(args,batch_train):
             plt.ylabel('avg. cost per batch')
             plt.show()
 
-def val(args,batch_val,mode):
+def val(model_opt, model_args, batch_val, mode, logdir):
     # Pass mode as either "Val" or "Test"
 
     with tf.Graph().as_default(), tf.Session() as session:
 
         with tf.variable_scope("model",reuse=None):
 
-            args.mode = 'val'
-            if args.model == 'fullDNNNoHistory':
-                val_model = fullDNNNoHistory(args)
-            elif args.model == 'oneDCNN':
-                val_model = oneDCNN(args)
-            elif args.model == 'LSTM':
-                val_model = LSTM(args)
-            elif args.model == 'LSTM_TR':
-                val_model = LSTMTargetReplication(args)
+            model_args['mode'] = mode
+            if model_opt == 'fullDNNNoHistory':
+                val_model = fullDNNNoHistory(model_args)
+            elif model_opt == 'oneDCNN':
+                val_model = oneDCNN(model_args)
+            elif model_opt == 'LSTM':
+                val_model = LSTM(model_args)
+            elif model_opt == 'LSTM_TR':
+                val_model = LSTMTargetReplication(model_args)
             else:
                 raise ValueError("model specified has not been implemented")
 
             val_model.build_graph()
-            if args.model == 'LSTM' or args.model == 'LSTM_TR':
+            if model_opt == 'LSTM' or model_opt == 'LSTM_TR':
                 val_model.initialize_state(session)
 
-            val_writer = tf.summary.FileWriter(args.logdir+'/val',session.graph)
+            val_writer = tf.summary.FileWriter(logdir + '/val', session.graph)
             restore_var = tf.train.Saver()
-            restore_var.restore(session, args.logdir+'/train/final-model')
+            restore_var.restore(session, logdir + '/train/final-model')
 
             #print type(val_model.input_layer_x)
             #print [var.name for var in tf.get_default_graph().get_operations()]
             #print [var.op.name for var in tf.get_default_graph().get_collection(tf.GraphKeys.GLOBAL_VARIABLES)]
 
             # run a complete epoch and return appropriate variables
-            y_prob, y_onehot = run_val_test_epoch(session, val_model, batch_val, args, args.max_batches_val,val_writer)
+            y_prob, y_onehot = run_val_test_epoch(session, val_model, batch_val, model_args.max_batches_val, val_writer)
 
-            print "Confusion metrics post Validation"+args.mode+" :"
+            print "Confusion metrics post Validation" + model_args['mode'] + " :"
             print compConfusion(y_prob, y_onehot)
 
-            rocPrAuc(y_prob,y_onehot,args.logdir,'val')
+            rocPrAuc(y_prob, y_onehot, logdir, 'val')
 
             val_writer.close()
 

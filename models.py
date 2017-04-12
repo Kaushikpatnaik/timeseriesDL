@@ -16,15 +16,15 @@ class oneDCNN(object):
             args: model arguments collected from main
         '''
 
-        self.num_layers = args.num_layers
-        self.layer_params = args.layer_params
-        self.init_lr_rate = args.lr_rate
-        self.ip_channels = args.ip_channels
-        self.op_channels = args.op_channels
-        self.seq_len = args.seq_len
-        self.mode = args.mode
-        self.batch_size = args.batch_size
-        self.class_weights = args.weights
+        self.num_layers = args['num_layers']
+        self.layer_params = args['layer_params']
+        self.init_lr_rate = args['lr_rate']
+        self.ip_channels = args['ip_channels']
+        self.op_channels = args['op_channels']
+        self.seq_len = args['seq_len']
+        self.mode = args['mode']
+        self.batch_size = args['batch_size']
+        self.class_weights = args['weights']
 
     def build_graph(self):
 
@@ -179,18 +179,18 @@ class oneDMultiChannelCNN(object):
         number of input channels
         '''
 
-        self.num_layers = args.num_layers
-        self.layer_params = args.layer_params
-        self.init_lr_rate = args.lr_rate
-        self.ip_channels = args.ip_channels
-        self.op_channels = args.op_channels
-        self.seq_len = args.seq_len
-        self.mode = args.mode
-        self.batch_size = args.batch_size
-        self.class_weights = args.weights
-        self.ss1_len = args.sub_sample_len[0]
-        self.ss2_len = args.sub_sample_len[1]
-        self.ss3_len = args.sub_sample_len[2]
+        self.num_layers = args['num_layers']
+        self.layer_params = args['layer_params']
+        self.init_lr_rate = args['lr_rate']
+        self.ip_channels = args['ip_channels']
+        self.op_channels = args['op_channels']
+        self.seq_len = args['seq_len']
+        self.mode = args['mode']
+        self.batch_size = args['batch_size']
+        self.class_weights = args['weights']
+        self.ss1_len = args['sub_sample_len[0]']
+        self.ss2_len = args['sub_sample_len[1]']
+        self.ss3_len = args['sub_sample_len[2]']
 
     def build_graph(self):
 
@@ -361,15 +361,15 @@ class fullDNNNoHistory(object):
 
         '''
 
-        self.ip_channels = args.ip_channels
-        self.seq_len = args.seq_len
-        self.num_layers = len(args.layer_sizes)
-        self.op_channels = args.op_channels
-        self.layer_sizes = args.layer_sizes
-        self.mode = args.mode
-        self.init_learn_rate = args.lr_rate
-        self.batch_size = args.batch_size
-        self.class_weights = args.weights
+        self.ip_channels = args['ip_channels']
+        self.seq_len = args['seq_len']
+        self.num_layers = len(args['layer_sizes'])
+        self.op_channels = args['op_channels']
+        self.layer_sizes = args['layer_sizes']
+        self.mode = args['mode']
+        self.init_learn_rate = args['lr_rate']
+        self.batch_size = args['batch_size']
+        self.class_weights = args['weights']
 
     def build_graph(self):
 
@@ -464,17 +464,17 @@ class LSTM(object):
     '''Class defining the overall model based on layers.py'''
     def __init__(self, args):
 
-        self.seq_len = args.seq_len
-        self.num_layers = args.num_layers
-        self.cell = args.cell
-        self.hidden_units = args.hidden_units
-        self.ip_channels = args.ip_channels
-        self.op_classes = args.op_channels
-        self.mode = args.mode
-        self.init_lr = args.lr_rate
-        self.grad_clip = args.grad_clip
-        self.batch_size = args.batch_size
-        self.class_weights = args.weights
+        self.seq_len = args['seq_len']
+        self.num_layers = args['num_layers']
+        self.cell = args['cell']
+        self.hidden_units = args['hidden_units']
+        self.ip_channels = args['ip_channels']
+        self.op_classes = args['op_channels']
+        self.mode = args['mode']
+        self.init_lr = args['lr_rate']
+        self.grad_clip = args['grad_clip']
+        self.batch_size = args['batch_size']
+        self.class_weights = args['weights']
 
     def build_graph(self):
 
@@ -562,17 +562,17 @@ class LSTMTargetReplication(object):
     '''Class defining the overall model based on layers.py'''
     def __init__(self, args):
 
-        self.seq_len = args.seq_len
-        self.num_layers = args.num_layers
-        self.cell = args.cell
-        self.hidden_units = args.hidden_units
-        self.ip_channels = args.ip_channels
-        self.op_classes = args.op_channels
-        self.mode = args.mode
-        self.init_lr = args.lr_rate
-        self.grad_clip = args.grad_clip
-        self.batch_size = args.batch_size
-        self.class_weights = args.weights
+        self.seq_len = args['seq_len']
+        self.num_layers = args['num_layers']
+        self.cell = args['cell']
+        self.hidden_units = args['hidden_units']
+        self.ip_channels = args['ip_channels']
+        self.op_classes = args['op_channels']
+        self.mode = args['mode']
+        self.init_lr = args['lr_rate']
+        self.grad_clip = args['grad_clip']
+        self.batch_size = args['batch_size']
+        self.class_weights = args['weights']
 
     def build_graph(self):
 
