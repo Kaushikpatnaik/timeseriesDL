@@ -233,7 +233,7 @@ class blackblazeReader(object):
 
         return train,val,test
 
-def get_data_obj(args):
+def get_data_obj(args,data_opt):
     '''
     Reading the data and flatting the sequence. i.e each row is seq_len (history) * num of channels (features)
     Args:
@@ -244,18 +244,16 @@ def get_data_obj(args):
     '''
 
     # TODO: determine the dataset num classes automatically
-    if args.dataset == 'backblaze':
+    if data_opt == 'backblaze':
 
-        # These options only work if you are creating a new dataset
+        '''
         # TODO: Need to find better way to do this
-        args.drive_model = 'ST3000DM001'
-        #args.drive_model = 'ST4000DM000'
         args.hist = 4
         args.pred_window = 3
         args.op_channels = 2
         args.dirloc = './data/backblaze/raw_data/'
         args.split_ratio = [0.8,0.1,0.1]
-
+        '''
 
         #backblaze_data = blackblazeReader(args)
         #train_data, val_data, test_data = backblaze_data.train_test_split(args.split_ratio)
@@ -270,7 +268,7 @@ def get_data_obj(args):
         test_data = cPickle.load(open('./data/backblaze/processed_data/' + str(args.drive_model) + '_test.pkl', 'rb'))
 
         op_channels = 2
-        seq_len = args.hist
+        seq_len = 4
         ip_channels = 14
 
         scaler = MinMaxScaler()
@@ -278,11 +276,11 @@ def get_data_obj(args):
         val_data = scaler.transform(val_data)
         test_data = scaler.transform(test_data)
 
-    elif args.dataset == 'phm08':
+    elif data_opt == 'phm08':
         raise NotImplementedError
 
 
-    elif args.dataset == 'electric':
+    elif data_opt == 'electric':
 
         op_channels = 7
         seq_len = 96
@@ -292,7 +290,7 @@ def get_data_obj(args):
         ucr_data = ucrDataReader(train_data_raw,args.split_ratio,op_channels)
         train_data, val_data, test_data = ucr_data.trainTestSplit()
 
-    elif args.dataset == "mnist":
+    elif data_opt == "mnist":
 
         mnist = input_data.read_data_sets('./data/mnist', one_hot=True)
         op_channels = 10

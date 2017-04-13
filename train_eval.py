@@ -6,6 +6,7 @@ from models import *
 from read_data import *
 from layers import *
 from statistics import *
+from utils import *
 
 def print_tensors_in_checkpoint_file(file_name):
     """Prints tensors in a checkpoint file.
@@ -23,12 +24,12 @@ def print_tensors_in_checkpoint_file(file_name):
         reader = tf.train.NewCheckpointReader(file_name)
         var_to_shape_map = reader.get_variable_to_shape_map()
         for key in var_to_shape_map:
-            print("tensor_name: ", key)
-            print(reader.get_tensor(key))
+            lprint("tensor_name: ", key)
+            lprint(reader.get_tensor(key))
     except Exception as e:  # pylint: disable=broad-except
-        print(str(e))
+        lprint(str(e))
         if "corrupted compressed block contents" in str(e):
-          print("It's likely that your checkpoint file has been compressed "
+          lprint("It's likely that your checkpoint file has been compressed "
                 "with SNAPPY.")
 
 
@@ -58,10 +59,10 @@ def run_train_epoch(session, model, data, max_batches,sess_summary):
 
     end_time = time.time()
 
-    print "Runtime of one epoch: "
-    print end_time-start_time
-    print "Average cost per epoch: "
-    print epoch_cost/max_batches
+    lprint("Runtime of one epoch: ")
+    lprint(end_time-start_time)
+    lprint("Average cost per epoch: ")
+    lprint(epoch_cost/max_batches)
 
     return softmax_op, y_onehot, cost_trajectory
 
@@ -74,7 +75,7 @@ def run_val_test_epoch(session, model, data, max_batches,sess_summary):
     softmax_op = np.zeros((max_batches*model.batch_size,model.op_channels))
     y_onehot = np.zeros((max_batches*model.batch_size,model.op_channels))
 
-    print type(model.input_layer_x), type(model.summaries), type(model.output_prob)
+    #print type(model.input_layer_x), type(model.summaries), type(model.output_prob)
 
     for i in range(max_batches):
         x, y = data.next()
@@ -85,12 +86,12 @@ def run_val_test_epoch(session, model, data, max_batches,sess_summary):
 
     end_time = time.time()
 
-    print "Runtime of one epoch: "
-    print end_time-start_time
+    lprint("Runtime of one epoch: ")
+    lprint(end_time-start_time)
 
     return softmax_op, y_onehot
 
-def train(model_opt, model_args, batch_train, logdir):
+def train(model_opt, model_args, batch_train, logdir, ix):
 
     # Initialize session and graph
     with tf.Graph().as_default(), tf.Session() as session:
@@ -112,7 +113,7 @@ def train(model_opt, model_args, batch_train, logdir):
             train_model.build_graph()
             tf.initialize_all_variables().run()
 
-            train_writer = tf.summary.FileWriter(logdir + '/train', session.graph)
+            train_writer = tf.summary.FileWriter(logdir+'model_'+str(ix)+'/train', session.graph)
             saver = tf.train.Saver()
             cost_over_batches = []
 
@@ -123,24 +124,24 @@ def train(model_opt, model_args, batch_train, logdir):
                 # run a complete epoch and return appropriate variables
                 y_prob, y_onehot, y_cost = run_train_epoch(session, train_model, batch_train, model_args['max_batches_train'], train_writer)
 
-                print "Confusion metrics post epoch "+str(i)+" :"
-                print compConfusion(y_prob,y_onehot)
+                lprint("For model_"+str(ix)+" Confusion metrics post epoch "+str(i)+" :")
+                lprint(compConfusion(y_prob,y_onehot))
 
                 cost_over_batches += y_cost
 
                 if i == model_args['num_epoch']/2:
-                    saver.save(session, logdir + '/train/train-model-iter', global_step=i)
+                    saver.save(session, logdir+'model_'+str(ix)+'/train/train-model-iter', global_step=i)
 
-            saver.save(session, logdir + '/train/final-model')
+            saver.save(session, logdir+'model_'+str(ix)+'/train/final-model')
             train_writer.close()
 
             plt.plot(np.linspace(1,len(cost_over_batches),len(cost_over_batches)),cost_over_batches)
             plt.title('Cost per batch over the training run')
             plt.xlabel('# batch')
             plt.ylabel('avg. cost per batch')
-            plt.show()
+            plt.savefig(logdir+'model_'+str(ix)+'_traincost.png')
 
-def val(model_opt, model_args, batch_val, mode, logdir):
+def val(model_opt, model_args, batch_val, mode, logdir, ix):
     # Pass mode as either "Val" or "Test"
 
     with tf.Graph().as_default(), tf.Session() as session:
@@ -163,9 +164,9 @@ def val(model_opt, model_args, batch_val, mode, logdir):
             if model_opt == 'LSTM' or model_opt == 'LSTM_TR':
                 val_model.initialize_state(session)
 
-            val_writer = tf.summary.FileWriter(logdir + '/val', session.graph)
+            val_writer = tf.summary.FileWriter(logdir+'model_'+str(ix)+'/val', session.graph)
             restore_var = tf.train.Saver()
-            restore_var.restore(session, logdir + '/train/final-model')
+            restore_var.restore(session, logdir+'model_'+str(ix)+'/train/final-model')
 
             #print type(val_model.input_layer_x)
             #print [var.name for var in tf.get_default_graph().get_operations()]
@@ -174,8 +175,8 @@ def val(model_opt, model_args, batch_val, mode, logdir):
             # run a complete epoch and return appropriate variables
             y_prob, y_onehot = run_val_test_epoch(session, val_model, batch_val, model_args.max_batches_val, val_writer)
 
-            print "Confusion metrics post Validation" + model_args['mode'] + " :"
-            print compConfusion(y_prob, y_onehot)
+            lprint("Confusion metrics post Validation" + model_args['mode'] + " :")
+            lprint(compConfusion(y_prob, y_onehot))
 
             rocPrAuc(y_prob, y_onehot, logdir, 'val')
 

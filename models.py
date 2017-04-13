@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from layers import *
 
+# TODO: Add dropout and batch re-norm
 class oneDCNN(object):
 
     def __init__(self,args):
@@ -25,6 +26,8 @@ class oneDCNN(object):
         self.mode = args['mode']
         self.batch_size = args['batch_size']
         self.class_weights = args['weights']
+        self.weight_reg = args['weight_reg']
+        self.cost_reg = args['cost_reg']
 
     def build_graph(self):
 
@@ -39,7 +42,7 @@ class oneDCNN(object):
         with tf.variable_scope(scope_name):
             kernel = tf.get_variable('conv_weight',shape=kernel_size,dtype=tf.float32,
                                      initializer=tf.truncated_normal_initializer(0,0.001),
-                                     regularizer=tf.contrib.layers.l2_regularizer(0.1))
+                                     regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
             conv_op = tf.nn.conv1d(prev_layer,kernel,stride,padding)
             bias = tf.get_variable('conv_bias',shape=kernel_size[-1],dtype=tf.float32,
                                    initializer=tf.constant_initializer(0.0))
@@ -55,11 +58,10 @@ class oneDCNN(object):
     def build_full_layer(self,prev_layer, ip_size, op_size,scope_name):
 
         # TODO: pass mean and std dev of initialization as parameters
-        # TODO: pass regularization constanst as parameter
         with tf.variable_scope(scope_name):
             layer_w = tf.get_variable('layer_w', [ip_size, op_size], dtype=tf.float32,
                                       initializer=tf.truncated_normal_initializer(0,0.001),
-                                      regularizer=tf.contrib.layers.l2_regularizer(0.1))
+                                      regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
             layer_b = tf.get_variable('layer_b', [op_size], dtype=tf.float32,
                                       initializer= tf.constant_initializer(0.0))
             local = tf.nn.relu(tf.matmul(prev_layer, layer_w) + layer_b)
@@ -69,7 +71,6 @@ class oneDCNN(object):
 
     def _build_model(self):
 
-        # TODO: None batch_size propagation becomes complicated due to reshaping op later on
         self.input_layer_x = tf.placeholder(tf.float32,(self.batch_size,self.seq_len,self.ip_channels),'input_layer_x')
         prev_layer = self.input_layer_x
 
@@ -120,7 +121,7 @@ class oneDCNN(object):
         # softmax output from final layer
         softmax_w = tf.get_variable('softmax_w',[np.prod(final_layer.get_shape()[1:]),self.op_channels],dtype=tf.float32,
                                     initializer= tf.truncated_normal_initializer(0,0.001),
-                                    regularizer=tf.contrib.layers.l2_regularizer(0.1))
+                                    regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
         softmax_b = tf.get_variable('softmax_b',[self.op_channels],dtype=tf.float32)
         self.output = tf.matmul(final_layer,softmax_w) + softmax_b
         self.output_prob = tf.nn.softmax(self.output)
@@ -137,8 +138,7 @@ class oneDCNN(object):
 
         # gather regularization terms and add them to the total loss
         reg_var = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-        reg_scale = 0.1
-        reg_losses = reg_scale * tf.add_n(reg_var)
+        reg_losses = self.cost_reg * tf.add_n(reg_var)
         tf.summary.scalar('regularization_loss',reg_losses)
 
         self.cost = cross_loss + reg_losses
@@ -164,7 +164,7 @@ class oneDCNN(object):
     def assign_lr(self,sess,new_value):
         sess.run(tf.assign(self.lrn_rate,new_value))
 
-# TODO: Customized model, how to make it parametrized
+# TODO: Add dropout and batch re-norm
 class oneDMultiChannelCNN(object):
 
     def __init__(self,args):
@@ -191,6 +191,8 @@ class oneDMultiChannelCNN(object):
         self.ss1_len = args['sub_sample_len[0]']
         self.ss2_len = args['sub_sample_len[1]']
         self.ss3_len = args['sub_sample_len[2]']
+        self.weight_reg = args['weight_reg']
+        self.cost_reg = args['cost_reg']
 
     def build_graph(self):
 
@@ -205,7 +207,7 @@ class oneDMultiChannelCNN(object):
         with tf.variable_scope(scope_name):
             kernel = tf.get_variable('conv_weight', shape=kernel_size, dtype=tf.float32,
                                      initializer=tf.truncated_normal_initializer(0, 0.001),
-                                     regularizer=tf.contrib.layers.l2_regularizer(0.1))
+                                     regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
             conv_op = tf.nn.conv1d(prev_layer, kernel, stride, padding)
             bias = tf.get_variable('conv_bias', shape=kernel_size[-1], dtype=tf.float32,
                                    initializer=tf.constant_initializer(0.0))
@@ -225,7 +227,7 @@ class oneDMultiChannelCNN(object):
         with tf.variable_scope(scope_name):
             layer_w = tf.get_variable('layer_w', [ip_size, op_size], dtype=tf.float32,
                                       initializer=tf.truncated_normal_initializer(0, 0.001),
-                                      regularizer=tf.contrib.layers.l2_regularizer(0.1))
+                                      regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
             layer_b = tf.get_variable('layer_b', [op_size], dtype=tf.float32,
                                       initializer=tf.constant_initializer(0.0))
             local = tf.nn.relu(tf.matmul(prev_layer, layer_w) + layer_b)
@@ -308,7 +310,7 @@ class oneDMultiChannelCNN(object):
         softmax_w = tf.get_variable('softmax_w', [np.prod(final_layer.get_shape()[1:]), self.op_channels],
                                     dtype=tf.float32,
                                     initializer=tf.truncated_normal_initializer(0, 0.001),
-                                    regularizer=tf.contrib.layers.l2_regularizer(0.1))
+                                    regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
         softmax_b = tf.get_variable('softmax_b', [self.op_channels], dtype=tf.float32)
         self.output = tf.matmul(final_layer, softmax_w) + softmax_b
         self.output_prob = tf.nn.softmax(self.output)
@@ -325,8 +327,7 @@ class oneDMultiChannelCNN(object):
 
         # gather regularization terms and add them to the total loss
         reg_var = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-        reg_scale = 0.1
-        reg_losses = reg_scale * tf.add_n(reg_var)
+        reg_losses = self.cost_reg * tf.add_n(reg_var)
         tf.summary.scalar('regularization_loss', reg_losses)
 
         self.cost = cross_loss + reg_losses
@@ -370,6 +371,8 @@ class fullDNNNoHistory(object):
         self.init_learn_rate = args['lr_rate']
         self.batch_size = args['batch_size']
         self.class_weights = args['weights']
+        self.weight_reg = args['weight_reg']
+        self.cost_reg = args['cost_reg']
 
     def build_graph(self):
 
@@ -382,11 +385,10 @@ class fullDNNNoHistory(object):
     def build_single_layer(self,prev_layer, ip_size, op_size):
 
         # TODO: pass mean and std dev of initialization as parameters
-        # TODO: pass regularization constanst as parameter
         # Build the first layer of weights, build the next ones iteratively
         layer_w = tf.get_variable('layer_w', [ip_size, op_size], dtype=tf.float32,
                                   initializer=tf.truncated_normal_initializer(0,0.001),
-                                  regularizer=tf.contrib.layers.l2_regularizer(0.1))
+                                  regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
         layer_b = tf.get_variable('layer_b', [op_size], dtype=tf.float32,
                                   initializer= tf.truncated_normal_initializer(0,0.001))
         local = tf.nn.relu(tf.matmul(prev_layer, layer_w) + layer_b)
@@ -416,7 +418,7 @@ class fullDNNNoHistory(object):
             with tf.variable_scope("layer_"+str(i)):
                 prev_layer = self.build_single_layer(prev_layer,prev_layer_size,curr_layer_size)
 
-        softmax_w = tf.get_variable('softmax_w',[self.layer_sizes[-1],self.op_channels],dtype=tf.float32, regularizer=tf.contrib.layers.l2_regularizer(0.1))
+        softmax_w = tf.get_variable('softmax_w',[self.layer_sizes[-1],self.op_channels],dtype=tf.float32, regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
         softmax_b = tf.get_variable('softmax_b',[self.op_channels],dtype=tf.float32)
         self.output = tf.matmul(prev_layer,softmax_w) + softmax_b
         self.output_prob = tf.nn.softmax(self.output)
@@ -433,10 +435,8 @@ class fullDNNNoHistory(object):
 
         # gather loss from regularization variables
         reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-        reg_constant = 0.1
 
-        #self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.output,self.input_layer_y)) + reg_constant*tf.add_n(reg_losses)
-        self.cost = weighted_cross_entropy(self.class_weights,self.output,self.input_layer_y) + reg_constant*tf.add_n(reg_losses)
+        self.cost = weighted_cross_entropy(self.class_weights,self.output,self.input_layer_y) + self.cost_regtf.add_n(reg_losses)
         tf.summary.scalar("loss",self.cost)
 
         self.lrn_rate = tf.Variable(self.init_learn_rate,trainable=False,dtype=tf.float32)
@@ -459,7 +459,7 @@ class fullDNNNoHistory(object):
         session.run(tf.assign(self.lrn_rate, new_lr))
 
 
-# TODO: test out the LSTM on data
+# TODO: add batch re-norm and dropout
 class LSTM(object):
     '''Class defining the overall model based on layers.py'''
     def __init__(self, args):
@@ -530,7 +530,6 @@ class LSTM(object):
 
         # sequence loss by example
         # TODO: Implement proper loss function for encoder like structure of LSTM
-        # TODO: Add regularization
         #self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.logits,self.input_layer_y))
         self.cost = weighted_cross_entropy(self.class_weights,self.logits,self.input_layer_y)
         tf.summary.scalar("loss",self.cost)

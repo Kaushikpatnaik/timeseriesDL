@@ -7,59 +7,54 @@ from train_eval import *
 import time
 from collections import OrderedDict, defaultdict
 from utils import *
-
-dnn_args = {'layer_sizes': [[64,32],[64,32,16],[128,64,32]], 'num_epochs': [5,7], 'lr_rate': [0.01,0.001,0.0001], 'lr_decay': [0.97,0.9,0.8]}
-
-lstm_args = {'cell': ['lstm'], 'num_layers': [1,2,3], 'hidden_units': [16,32,64,128], 'num_epochs': [8,10,12], 'lr_rate': [0.001,0.0001], 'lr_decay': [0.97,0.9], 'grad_clip': [3.0,5.0,8.0]}
-
-lstmtr_args = {'cell': ['lstm'], 'num_layers': [1,2,3], 'hidden_units': [16,32,64,128], 'num_epochs': [8,10,12], 'lr_rate': [0.001,0.0001], 'lr_decay': [0.97,0.9], 'grad_clip': [3.0,5.0,8.0]}
-
-# TODO: Add more layers
-layer_params_2 = OrderedDict({'2_full': (64), '1_conv': (3,64,1,'VALID')})
-cnn_args = {'num_layers': [2,3,4], 'num_epochs': [5,8,10], 'lr_rate': [0.01,0.001,0.0001], 'lr_decay': [0.97,0.9], 'layer_params': [layer_params_2,]}
-
-# TODO: Make the num_layers redundant or derivative from layer_params
-cnn_multi_args = {'num_layers': [2,3,4], 'num_epochs': [5,8,10], 'lr_rate': [0.01,0.001,0.0001], 'lr_decay': [0.97,0.9], 'layer_params': [layer_params_2,], 'sub_sample': []}
-
-list_label_ratio = [{},{},{},{}]
-list_label_weight = []
-data_args = {'backblaze': {'batch_size': [64,128,256], 'split_ratio': [[0.8,0.1,0.1]], 'label_ratio': list_label_ratio}, 'electric': {'batch_size': [64], 'split_ratio': [[0.8,0.1,0.1]]}}
-
-model_args = {'lstm': lstm_args, 'cnn': cnn_args, 'lstrm_lr': lstmtr_args, 'dnn': dnn_args, 'multi_cnn': cnn_multi_args}
+import logging
+import os
 
 def main():
 
     # replacing the data and model arguments with dictionaries to run multiple experiments
-    data_list = ['blackblaze','electric']
-    model_list = ['cnn','multi_cnn','lstm','lstm_tr','dnn']
+    data_list = ['backblaze','electric']
+    model_list = ['cnn','lstm','lstm_tr']
 
-    today = time.strftime("%d/%m/%Y %H:%M:%S")
+    today = time.strftime("%d_%m_%Y %H_%M_%S")
     logdir = './logs/'+today+'/'
+
+    if not os.path.exists(logdir):
+        os.makedirs(logdir)
+
+    logging.basicConfig(level=logging.DEBUG, filename=logdir+'logfile', filemode='a+', \
+                        format='%(asctime)-15s %(levelname)-8s %(message)s')
 
     for itr_data, itr_model in product(data_list,model_list):
 
-        print "Running model: "+str(itr_model)+" for dataset: "+str(itr_data)
+        lprint("Running model: "+str(itr_model)+" for dataset: "+str(itr_data))
 
         # grid of params for the data and the model
         args_data = paramGrid(data_args[itr_data])
         args_model = paramGrid(model_args[itr_model])
 
+        lprint([x for x in args_data])
+        lprint([x for x in args_model])
+
         # Each model may have a grid of parameters to check over
         # There may be data parameters for each dataset also !
         # ideally the data for such a grid check should be consistent in terms of train, val and test split
-        for data_param in args_data:
+        for it, data_param in enumerate(args_data):
 
             # based on the data_param determine the dataset to be downloaded and split
-            train_data, val_data, test_data, ip_channel, op_channel, seq_len = get_data_obj(data_param)
+            train_data, val_data, test_data, ip_channel, op_channel, seq_len = get_data_obj(data_param,itr_data)
 
-            for model_param in args_model:
+            logdir += 'data_param_'+str(it)+'/'
+            f = open(logdir+'config.csv')
+            f.write(str(it)+'\t'+str(data_param.items()))
 
-                # update the logdir
-                logdir += ''
+            for ix, model_param in enumerate(args_model):
+
+                f.write(str(it)+'_'+str(ix)+'\t'+str(model_param.items()))
 
                 # Training section
-                print "Training Dataset Shape: "
-                print train_data.shape
+                lprint("Training Dataset Shape: ")
+                lprint(train_data.shape)
 
                 '''
                 if args_model.model == 'oneDMultiChannelCNN':
@@ -86,18 +81,54 @@ def main():
                 model_param['op_channels'] = op_channel
                 model_param['seq_len'] = seq_len
                 model_param['batch_size'] = data_param['batch_size']
-                model_param['weights'] = [1.0/5,1.0]
+                model_param['weights'] = data_param['label_weights']
 
                 # train and return the saved trainable parameters of the model
-                train(itr_model, model_param, batch_train, logdir)
+                train(itr_model, model_param, batch_train, logdir, ix)
 
                 # Validation section
-                print "Validation DataSet Shape: "
-                print val_data.shape
+                lprint("Validation DataSet Shape: ")
+                lprint(val_data.shape)
 
                 model_param['max_batches_val'] = batch_val.get_num_batches()
-                val(itr_model, model_param, batch_val, "val", logdir)
+                val(itr_model, model_param, batch_val, "val", logdir, ix)
+
+            f.close()
 
 
 if __name__ == "__main__":
+    dnn_args = {'layer_sizes': [[64, 32], [64, 32, 16], [128, 64, 32]], 'num_epochs': [5, 7],
+                'lr_rate': [0.01, 0.001, 0.0001], 'lr_decay': [0.97, 0.9, 0.8], 'weight_reg': [1, 0.1, 0.01, 0.001],
+                'cost_reg': [1, 0.1, 0.01, 0.001]}
+
+    lstm_args = {'cell': ['lstm'], 'num_layers': [1, 2, 3], 'hidden_units': [16, 32, 64, 128],
+                 'num_epochs': [8, 10, 12], 'lr_rate': [0.001, 0.0001], 'lr_decay': [0.97, 0.9],
+                 'grad_clip': [3.0, 5.0, 8.0]}
+
+    lstmtr_args = {'cell': ['lstm'], 'num_layers': [1, 2, 3], 'hidden_units': [16, 32, 64, 128],
+                   'num_epochs': [8, 10, 12], 'lr_rate': [0.001, 0.0001], 'lr_decay': [0.97, 0.9],
+                   'grad_clip': [3.0, 5.0, 8.0]}
+
+    # TODO: Add more layers
+    layer_params_2 = OrderedDict({'2_full': (64), '1_conv': (3, 64, 1, 'VALID')})
+    cnn_args = {'num_layers': [2, 3, 4], 'num_epochs': [5, 8, 10], 'lr_rate': [0.01, 0.001, 0.0001],
+                'lr_decay': [0.97, 0.9], 'layer_params': [layer_params_2, ]}
+
+    # TODO: Make the num_layers redundant or derivative from layer_params
+    cnn_multi_args = {'num_layers': [2, 3, 4], 'num_epochs': [5, 8, 10], 'lr_rate': [0.01, 0.001, 0.0001],
+                      'lr_decay': [0.97, 0.9], 'layer_params': [layer_params_2, ], 'sub_sample': []}
+
+    list_label_ratio = [{0: 0.9, 1: 0.1}, {0: 0.7, 1: 0.3}, {0: 0.5, 1: 0.5}]
+    list_label_weight = [[0.2, 1], [0.5, 1], [1, 1]]
+    data_args = {
+        'backblaze': {'batch_size': [64, 128, 256], 'split_ratio': [[0.8, 0.1, 0.1]], 'label_ratio': list_label_ratio,
+                      'label_weights': list_label_weight, 'drive_model': ['ST3000DM001','ST4000DM000']}, \
+        'electric': {'batch_size': [64], 'split_ratio': [[0.8, 0.1, 0.1]], 'label_ratio': list_label_ratio,
+                     'label_weights': list_label_weight}}
+
+    model_args = {'lstm': lstm_args, 'cnn': cnn_args, 'lstrm_lr': lstmtr_args, 'dnn': dnn_args,
+                  'multi_cnn': cnn_multi_args}
+
+
+
     main()
