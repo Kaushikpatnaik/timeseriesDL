@@ -17,7 +17,7 @@ class oneDCNN(object):
             args: model arguments collected from main
         '''
 
-        self.num_layers = args['num_layers']
+        self.num_layers = len(args['layer_params'])
         self.layer_params = args['layer_params']
         self.init_lr_rate = args['lr_rate']
         self.ip_channels = args['ip_channels']
@@ -179,7 +179,7 @@ class oneDMultiChannelCNN(object):
         number of input channels
         '''
 
-        self.num_layers = args['num_layers']
+        self.num_layers = len(args['layer_params'])
         self.layer_params = args['layer_params']
         self.init_lr_rate = args['lr_rate']
         self.ip_channels = args['ip_channels']

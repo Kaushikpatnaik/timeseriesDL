@@ -99,13 +99,13 @@ def train(model_opt, model_args, batch_train, logdir, ix):
         with tf.variable_scope("model", reuse=None):
 
             model_args['mode'] = 'train'
-            if model_opt == 'fullDNNNoHistory':
+            if model_opt == 'dnn':
                 train_model = fullDNNNoHistory(model_args)
-            elif model_opt == 'oneDCNN':
+            elif model_opt == 'cnn':
                 train_model = oneDCNN(model_args)
-            elif model_opt == 'LSTM':
+            elif model_opt == 'lstm':
                 train_model = LSTM(model_args)
-            elif model_opt == 'LSTM_TR':
+            elif model_opt == 'lstm_tr':
                 train_model = LSTMTargetReplication(model_args)
             else:
                 raise ValueError("model specified has not been implemented")
@@ -129,7 +129,7 @@ def train(model_opt, model_args, batch_train, logdir, ix):
 
                 cost_over_batches += y_cost
 
-                if i == model_args['num_epoch']/2:
+                if i == model_args['num_epochs']/2:
                     saver.save(session, logdir+'model_'+str(ix)+'/train/train-model-iter', global_step=i)
 
             saver.save(session, logdir+'model_'+str(ix)+'/train/final-model')
@@ -149,19 +149,19 @@ def val(model_opt, model_args, batch_val, mode, logdir, ix):
         with tf.variable_scope("model",reuse=None):
 
             model_args['mode'] = mode
-            if model_opt == 'fullDNNNoHistory':
+            if model_opt == 'dnn':
                 val_model = fullDNNNoHistory(model_args)
-            elif model_opt == 'oneDCNN':
+            elif model_opt == 'cnn':
                 val_model = oneDCNN(model_args)
-            elif model_opt == 'LSTM':
+            elif model_opt == 'lstm':
                 val_model = LSTM(model_args)
-            elif model_opt == 'LSTM_TR':
+            elif model_opt == 'lstm_tr':
                 val_model = LSTMTargetReplication(model_args)
             else:
                 raise ValueError("model specified has not been implemented")
 
             val_model.build_graph()
-            if model_opt == 'LSTM' or model_opt == 'LSTM_TR':
+            if model_opt == 'lstm' or model_opt == 'lstm_tr':
                 val_model.initialize_state(session)
 
             val_writer = tf.summary.FileWriter(logdir+'model_'+str(ix)+'/val', session.graph)
@@ -173,12 +173,12 @@ def val(model_opt, model_args, batch_val, mode, logdir, ix):
             #print [var.op.name for var in tf.get_default_graph().get_collection(tf.GraphKeys.GLOBAL_VARIABLES)]
 
             # run a complete epoch and return appropriate variables
-            y_prob, y_onehot = run_val_test_epoch(session, val_model, batch_val, model_args.max_batches_val, val_writer)
+            y_prob, y_onehot = run_val_test_epoch(session, val_model, batch_val, model_args['max_batches_val'], val_writer)
 
             lprint("Confusion metrics post Validation" + model_args['mode'] + " :")
             lprint(compConfusion(y_prob, y_onehot))
 
-            rocPrAuc(y_prob, y_onehot, logdir, 'val')
+            rocPrAuc(y_prob, y_onehot, logdir, 'model_'+str(ix))
 
             val_writer.close()
 

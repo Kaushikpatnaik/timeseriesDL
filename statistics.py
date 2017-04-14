@@ -48,5 +48,4 @@ def rocPrAuc(op_prob,y_onehot,logdir,folder):
     axes[1].plot(prec2,recall2)
     axes[1].set_title('ROC Curve '+str(auc_score))
     axes[0].set_title('PR Curve '+str(pr_score))
-    plt.savefig(logdir+'/'+folder+'/roc_auc_curves.png')
-    plt.show()
+    plt.savefig(logdir+folder+'_roc_auc_curves.png')

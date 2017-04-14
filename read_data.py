@@ -6,6 +6,7 @@ import os
 from tensorflow.examples.tutorials.mnist import input_data
 import cPickle
 from sklearn.preprocessing import MinMaxScaler
+from utils import *
 
 class ucrDataReader(object):
     '''
@@ -83,12 +84,15 @@ class phmReader(object):
 
 class blackblazeReader(object):
 
-    def __init__(self,args):
+    def __init__(self,dirloc,drive_model,hist,pred_window):
         '''
         Class to read and load the backblaze 2015 dataset
         '''
 
-        self.args = args
+        self.dirloc = dirloc
+        self.hist = hist
+        self.pred_window = pred_window
+        self.drive_model = drive_model
 
     def _prune_to_model(self):
         '''
@@ -97,21 +101,22 @@ class blackblazeReader(object):
 
         '''
 
-        if os.path.exists(self.args.dirloc):
+        if os.path.exists(self.dirloc):
 
             data = pd.DataFrame([])
             stats = pd.DataFrame([],columns=['model','serial_number','failure'])
-            filenamelist = os.listdir(self.args.dirloc)
-            for filename in filenamelist:
-                print filename, filename[-3:]
-                if os.path.isfile(os.path.join(self.args.dirloc,filename)) and (filename[-3:]=='csv'):
-                    t_data = pd.read_csv(os.path.join(self.args.dirloc,filename))
+            filenamelist = os.listdir(self.dirloc)
+            for idx, filename in enumerate(filenamelist):
+                if idx%50 == 0:
+                    print filename, filename[-3:]
+                if os.path.isfile(os.path.join(self.dirloc,filename)) and (filename[-3:]=='csv'):
+                    t_data = pd.read_csv(os.path.join(self.dirloc,filename))
                     t2_data = t_data[['model','serial_number','failure']].drop_duplicates()
-                    t_data = t_data[t_data['model']==self.args.drive_model]
+                    t_data = t_data[t_data['model']==self.drive_model]
                     data = data.append(t_data)
                     stats = stats.append(t2_data)
 
-            print stats.groupby(['model','failure'])['serial_number'].size().reset_index().to_csv('./logs/model_failure_statistics.csv')
+            lprint(stats.groupby(['model','failure'])['serial_number'].size().reset_index())
 
             return data
         else:
@@ -138,10 +143,10 @@ class blackblazeReader(object):
             t_data_diff.columns = ['smart_5_raw_diff','smart_183_raw_diff','smart_184_raw_diff','smart_187_raw_diff','smart_188_raw_diff','smart_193_raw_diff','smart_197_raw_diff']
             t_data = pd.concat([t_data,t_data_diff],axis=1).values
             row,col = t_data.shape
-            for i in range(self.args.hist,row):
+            for i in range(self.hist,row):
                 #print t_data[i-self.args.hist:i,:].flatten()
                 res_label.append(t_label[i])
-                res_data.append(t_data[i-self.args.hist:i,:].flatten())
+                res_data.append(t_data[i-self.hist:i,:].flatten())
 
         res_data = np.array(res_data)
         res_label = np.array(res_label).reshape(len(res_label),1)
@@ -149,7 +154,7 @@ class blackblazeReader(object):
         # assume failure post last failure date does not happen to simplify calculation
         res_label_final = np.zeros((len(res_label),2))
         for i in range(len(res_label)):
-            r_end = min(len(res_label),i+self.args.pred_window)
+            r_end = min(len(res_label),i+self.pred_window)
             t_label = sum(res_label[i:r_end])
             if t_label == 0:
                 res_label_final[i] = (1,0)
@@ -157,8 +162,8 @@ class blackblazeReader(object):
                 res_label_final[i] = (0,1)
         res_label_final = np.array(res_label_final)
 
-        print "Feature and Label Shape: "
-        print res_data.shape, res_label_final.shape
+        lprint("Feature and Label Shape: ")
+        lprint((res_data.shape, res_label_final.shape))
 
         return np.concatenate((res_data,res_label_final),axis=1)
 
@@ -174,8 +179,8 @@ class blackblazeReader(object):
         returns training, validation and testing sets
         '''
 
-        print "Split provided: "
-        print split
+        lprint("Split provided: ")
+        lprint(split)
 
         data = self._prune_to_model()
 
@@ -183,8 +188,8 @@ class blackblazeReader(object):
 
         data_serial_label = data.groupby('serial_number')['failure'].sum().reset_index()
 
-        print "Overall Failure Statistics: "
-        print data_serial_label.groupby('failure')['serial_number'].size().reset_index()
+        lprint("Overall Failure Statistics: ")
+        lprint(data_serial_label.groupby('failure')['serial_number'].size().reset_index())
 
         assert(len(data_serials)==len(data_serial_label))
 
@@ -200,32 +205,32 @@ class blackblazeReader(object):
         #print "Permuted Serial Indexes: "
         #print data_serial_label_perm
 
-        print "Checking ranges for split: "
-        print 0, int(split[0]*len(data_serial_label_perm))
-        print int(split[0]*len(data_serial_label_perm)), np.floor((split[0]+split[1])*len(data_serial_label_perm))
-        print np.ceil(sum(split[:2])*len(data_serial_label_perm)), len(data_serial_label_perm)
+        lprint("Checking ranges for split: ")
+        lprint(int(split[0]*len(data_serial_label_perm)))
+        lprint((int(split[0]*len(data_serial_label_perm)), np.floor((split[0]+split[1])*len(data_serial_label_perm))))
+        lprint((np.ceil(sum(split[:2])*len(data_serial_label_perm)), len(data_serial_label_perm)))
 
         train_serial_num = data_serial_label_perm.ix[0:int(np.floor(split[0]*len(data_serial_label_perm)))]
         val_serial_num = data_serial_label_perm.ix[int(split[0]*len(data_serial_label_perm)):int(np.floor((split[0]+split[1])*len(data_serial_label_perm)))]
         test_serial_num = data_serial_label_perm.ix[int(np.ceil(sum(split[:2])*len(data_serial_label_perm))):]
 
         # count statistics of failures
-        print "Training data statistics on failures and non-failures: "
-        print train_serial_num.groupby('failure')['serial_number'].size()
-        print "Validation data statistics on failures and non-failures: "
-        print val_serial_num.groupby('failure')['serial_number'].size()
-        print "Testing data statistics on failures and non-failures: "
-        print test_serial_num.groupby('failure')['serial_number'].size()
+        lprint("Training data statistics on failures and non-failures: ")
+        lprint(train_serial_num.groupby('failure')['serial_number'].size())
+        lprint("Validation data statistics on failures and non-failures: ")
+        lprint(val_serial_num.groupby('failure')['serial_number'].size())
+        lprint("Testing data statistics on failures and non-failures: ")
+        lprint(test_serial_num.groupby('failure')['serial_number'].size())
 
         # check that no serial number exists in both groups
-        print "Do the train and validation sets overlap ?"
-        print sum([int(x==y) for x in train_serial_num['serial_number'].values.tolist() for y in val_serial_num['serial_number'].values.tolist()]) > 0
+        lprint("Do the train and validation sets overlap ?")
+        lprint(sum([int(x==y) for x in train_serial_num['serial_number'].values.tolist() for y in val_serial_num['serial_number'].values.tolist()]) > 0)
 
-        print "Do the train and test sets overlap ?"
-        print sum([int(x==y) for x in train_serial_num['serial_number'].values.tolist() for y in test_serial_num['serial_number'].values.tolist()]) > 0
+        lprint("Do the train and test sets overlap ?")
+        lprint(sum([int(x==y) for x in train_serial_num['serial_number'].values.tolist() for y in test_serial_num['serial_number'].values.tolist()]) > 0)
 
-        print "Do the test and validation sets overlap ?"
-        print sum([int(x==y) for x in test_serial_num['serial_number'].values.tolist() for y in val_serial_num['serial_number'].values.tolist()]) > 0
+        lprint("Do the test and validation sets overlap ?")
+        lprint(sum([int(x==y) for x in test_serial_num['serial_number'].values.tolist() for y in val_serial_num['serial_number'].values.tolist()]) > 0)
 
         train = self._mod_data(data[data['serial_number'].isin(train_serial_num['serial_number'].values.tolist())])
         val = self._mod_data(data[data['serial_number'].isin(val_serial_num['serial_number'].values.tolist())])
@@ -246,29 +251,27 @@ def get_data_obj(args,data_opt):
     # TODO: determine the dataset num classes automatically
     if data_opt == 'backblaze':
 
-        '''
+
         # TODO: Need to find better way to do this
-        args.hist = 4
-        args.pred_window = 3
-        args.op_channels = 2
-        args.dirloc = './data/backblaze/raw_data/'
-        args.split_ratio = [0.8,0.1,0.1]
-        '''
+        hist = 4
+        pred_window = 3
+        dirloc = './data/backblaze/raw_data/'
 
-        #backblaze_data = blackblazeReader(args)
-        #train_data, val_data, test_data = backblaze_data.train_test_split(args.split_ratio)
+        try:
+            train_data = cPickle.load(open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_train.pkl', 'rb'))
+            val_data = cPickle.load(open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_val.pkl', 'rb'))
+            test_data = cPickle.load(open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_test.pkl', 'rb'))
+        except:
+            backblaze_data = blackblazeReader(dirloc, args['drive_model'], hist, pred_window)
+            train_data, val_data, test_data = backblaze_data.train_test_split(args['split_ratio'])
 
-        # Saved the train, val and test sets for future work, as they take a lot of time to prepare
-        #cPickle.dump(train_data, open('./data/backblaze/processed_data/' + str(args.drive_model) + '_train.pkl','w'))
-        #cPickle.dump(val_data, open('./data/backblaze/processed_data/' + str(args.drive_model) + '_val.pkl', 'w'))
-        #cPickle.dump(test_data, open('./data/backblaze/processed_data/' + str(args.drive_model) + '_test.pkl', 'w'))
-
-        train_data = cPickle.load(open('./data/backblaze/processed_data/' + str(args.drive_model) + '_train.pkl', 'rb'))
-        val_data = cPickle.load(open('./data/backblaze/processed_data/' + str(args.drive_model) + '_val.pkl', 'rb'))
-        test_data = cPickle.load(open('./data/backblaze/processed_data/' + str(args.drive_model) + '_test.pkl', 'rb'))
+            # Saved the train, val and test sets for future work, as they take a lot of time to prepare
+            cPickle.dump(train_data, open('./data/backblaze/processed_data/' + str(args.drive_model) + '_train.pkl','w'))
+            cPickle.dump(val_data, open('./data/backblaze/processed_data/' + str(args.drive_model) + '_val.pkl', 'w'))
+            cPickle.dump(test_data, open('./data/backblaze/processed_data/' + str(args.drive_model) + '_test.pkl', 'w'))
 
         op_channels = 2
-        seq_len = 4
+        seq_len = hist
         ip_channels = 14
 
         scaler = MinMaxScaler()
