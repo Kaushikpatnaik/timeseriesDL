@@ -47,10 +47,12 @@ def main():
 
             f = open(logdir+'config.csv','w+')
             f.write(str(it)+'\t'+str(data_param.items()))
+            f.write('\n')
 
             for ix, model_param in enumerate(args_model):
 
                 f.write(str(it)+'_'+str(ix)+'\t'+str(model_param.items()))
+                f.write('\n')
 
                 # Training section
                 lprint("Training Dataset Shape: ")
@@ -112,7 +114,7 @@ if __name__ == "__main__":
     # TODO: Add more layers
     layer_params_opt_1 = OrderedDict({'2_full': (64), '1_conv': (3, 64, 1, 'VALID')})
     layer_params_opt_2 = OrderedDict({'2_full': (256), '1_conv': (3, 128, 1, 'VALID')})
-    layer_params_opt_3 = OrderedDict({'3_full': (64), '2_conv': (3, 32, 1, 'VALID'), '1_conv': (3, 64, 1, 'VALID')})
+    layer_params_opt_3 = OrderedDict({'3_full': (64), '2_conv': (3, 32, 1, 'VALID'), '1_conv': (1, 64, 1, 'VALID')})
     cnn_args = {'num_epochs': [5, 8, 10], 'lr_rate': [0.01, 0.001, 0.0001],
                 'lr_decay': [0.97, 0.9], 'layer_params': [layer_params_opt_1, layer_params_opt_2, layer_params_opt_3], 'weight_reg': [1.0, 0.1, 0.01, 0.001],
                 'cost_reg': [1.0, 0.1, 0.01, 0.001]}
