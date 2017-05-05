@@ -184,7 +184,7 @@ class lstmLayer(object):
             # Input_data is of size batch_size * vocab
 
             # separate the cell state from output
-            c, h = tf.split(1, 2, state)
+            c, h = tf.split(state,2,1)
 
             # Overall there are four set of input to hidden weights, and four set of hidden to hidden weights
             # All of them can be processed together as part of one array operation or by creating a function and
@@ -211,7 +211,7 @@ class lstmLayer(object):
             new_c = c * tf.sigmoid(forget_gate + self.offset_bias) + tf.sigmoid(ip_transform) * tf.tanh(ip_gate)
             new_h = tf.tanh(new_c) * tf.sigmoid(output_gate)
 
-            return new_h, tf.concat(1, [new_c, new_h])
+            return new_h, tf.concat([new_c, new_h], 1)
 
 class DeepLSTM(object):
     '''A DeepLSTM unit composed of multiple LSTM units'''
