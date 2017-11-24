@@ -19,10 +19,10 @@ def weighted_cross_entropy(weights,logits,labels):
 
         class_weights = tf.constant(weights,dtype=tf.float32)
 
-        weight_per_example = tf.transpose(tf.mul(labels,class_weights))
-        reg_cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits,labels)
+        weight_per_example = tf.transpose(tf.multiply(labels,class_weights))
+        reg_cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits,labels=labels)
 
-        return tf.reduce_mean(tf.mul(weight_per_example,reg_cross_entropy))
+        return tf.reduce_mean(tf.multiply(weight_per_example,reg_cross_entropy))
 
 
 def weighted_sequence_loss_by_example(logits, targets, seq_weights, average_across_time=True, scope=None):

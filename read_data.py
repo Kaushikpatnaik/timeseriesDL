@@ -4,9 +4,11 @@ import matplotlib.pyplot as plt
 import os
 
 from tensorflow.examples.tutorials.mnist import input_data
-import cPickle
+import pickle
 from sklearn.preprocessing import MinMaxScaler
-from utils import *
+import logging
+
+module_logger = logging.getLogger('timeSeriesDL.read_data')
 
 class ucrDataReader(object):
     '''
@@ -58,11 +60,11 @@ class ucrDataReader(object):
         test_data = data[int(len(data)*self.train_test_split[1]):,:]
         test_label = label_onehot[int(len(data)*self.train_test_split[1]):,:]
 
-        print "Train, Val, Test data shape: "
-        print train_data.shape, val_data.shape, test_data.shape
+        module_logger.info("Train, Val, Test data shape: ")
+        module_logger.info(train_data.shape, val_data.shape, test_data.shape)
 
-        print "Train, Val, Test label shape: "
-        print train_label.shape, val_label.shape, test_label.shape
+        module_logger.info("Train, Val, Test label shape: ")
+        module_logger.info(train_label.shape, val_label.shape, test_label.shape)
 
         train = np.concatenate((train_data,train_label),axis=1)
         val = np.concatenate((val_data,val_label),axis=1)
@@ -86,7 +88,7 @@ class blackblazeReader(object):
 
     def __init__(self,dirloc,drive_model,hist,pred_window):
         '''
-        Class to read and load the backblaze 2015 dataset
+        Class to read and load the backblaze raw_data dataset
         '''
 
         self.dirloc = dirloc
@@ -108,7 +110,7 @@ class blackblazeReader(object):
             filenamelist = os.listdir(self.dirloc)
             for idx, filename in enumerate(filenamelist):
                 if idx%50 == 0:
-                    print filename, filename[-3:]
+                    print(filename, filename[-3:])
                 if os.path.isfile(os.path.join(self.dirloc,filename)) and (filename[-3:]=='csv'):
                     t_data = pd.read_csv(os.path.join(self.dirloc,filename))
                     t2_data = t_data[['model','serial_number','failure']].drop_duplicates()
@@ -116,7 +118,7 @@ class blackblazeReader(object):
                     data = data.append(t_data)
                     stats = stats.append(t2_data)
 
-            lprint(stats.groupby(['model','failure'])['serial_number'].size().reset_index())
+            module_logger.info(stats.groupby(['model','failure'])['serial_number'].size().reset_index())
 
             return data
         else:
@@ -126,6 +128,8 @@ class blackblazeReader(object):
     def _mod_data(self,data):
         '''
         Based on the provided arguments select the desired columns and pivot appropriate history for each day
+        List of parameters provided in the paper:
+
         Returns:
 
         '''
@@ -138,10 +142,15 @@ class blackblazeReader(object):
         for serial in serialList:
             t_data = data[data['serial_number']==serial].sort_values('date')
             t_label = t_data['failure'].values.tolist()
-            t_data = t_data[['smart_5_raw','smart_183_raw','smart_184_raw','smart_187_raw','smart_188_raw','smart_193_raw','smart_197_raw']].interpolate(method='linear')
+            t_data = t_data[['smart_1_raw','smart_5_raw','smart_7_raw','smart_183_raw','smart_184_raw','smart_187_raw',\
+                             'smart_188_raw','smart_189_raw','smart_190_raw','smart_193_raw','smart_194_raw','smart_197_raw',\
+                             'smart_198_raw','smart_199_raw','smart_240_raw','smart_241_raw','smart_242_raw']].interpolate(method='linear').values
+            '''
+            Difference features, keep away for now
             t_data_diff = t_data.diff(1).fillna(0)
             t_data_diff.columns = ['smart_5_raw_diff','smart_183_raw_diff','smart_184_raw_diff','smart_187_raw_diff','smart_188_raw_diff','smart_193_raw_diff','smart_197_raw_diff']
             t_data = pd.concat([t_data,t_data_diff],axis=1).values
+            '''
             row,col = t_data.shape
             for i in range(self.hist,row):
                 #print t_data[i-self.args.hist:i,:].flatten()
@@ -162,8 +171,8 @@ class blackblazeReader(object):
                 res_label_final[i] = (0,1)
         res_label_final = np.array(res_label_final)
 
-        lprint("Feature and Label Shape: ")
-        lprint((res_data.shape, res_label_final.shape))
+        module_logger.info("Feature and Label Shape: ")
+        module_logger.info((res_data.shape, res_label_final.shape))
 
         return np.concatenate((res_data,res_label_final),axis=1)
 
@@ -179,8 +188,8 @@ class blackblazeReader(object):
         returns training, validation and testing sets
         '''
 
-        lprint("Split provided: ")
-        lprint(split)
+        module_logger.info("Split provided: ")
+        module_logger.info(split)
 
         data = self._prune_to_model()
 
@@ -188,8 +197,8 @@ class blackblazeReader(object):
 
         data_serial_label = data.groupby('serial_number')['failure'].sum().reset_index()
 
-        lprint("Overall Failure Statistics: ")
-        lprint(data_serial_label.groupby('failure')['serial_number'].size().reset_index())
+        module_logger.info("Overall Failure Statistics: ")
+        module_logger.info(data_serial_label.groupby('failure')['serial_number'].size().reset_index())
 
         assert(len(data_serials)==len(data_serial_label))
 
@@ -205,32 +214,32 @@ class blackblazeReader(object):
         #print "Permuted Serial Indexes: "
         #print data_serial_label_perm
 
-        lprint("Checking ranges for split: ")
-        lprint(int(split[0]*len(data_serial_label_perm)))
-        lprint((int(split[0]*len(data_serial_label_perm)), np.floor((split[0]+split[1])*len(data_serial_label_perm))))
-        lprint((np.ceil(sum(split[:2])*len(data_serial_label_perm)), len(data_serial_label_perm)))
+        module_logger.info("Checking ranges for split: ")
+        module_logger.info(int(split[0]*len(data_serial_label_perm)))
+        module_logger.info((int(split[0]*len(data_serial_label_perm)), np.floor((split[0]+split[1])*len(data_serial_label_perm))))
+        module_logger.info((np.ceil(sum(split[:2])*len(data_serial_label_perm)), len(data_serial_label_perm)))
 
         train_serial_num = data_serial_label_perm.ix[0:int(np.floor(split[0]*len(data_serial_label_perm)))]
         val_serial_num = data_serial_label_perm.ix[int(split[0]*len(data_serial_label_perm)):int(np.floor((split[0]+split[1])*len(data_serial_label_perm)))]
         test_serial_num = data_serial_label_perm.ix[int(np.ceil(sum(split[:2])*len(data_serial_label_perm))):]
 
         # count statistics of failures
-        lprint("Training data statistics on failures and non-failures: ")
-        lprint(train_serial_num.groupby('failure')['serial_number'].size())
-        lprint("Validation data statistics on failures and non-failures: ")
-        lprint(val_serial_num.groupby('failure')['serial_number'].size())
-        lprint("Testing data statistics on failures and non-failures: ")
-        lprint(test_serial_num.groupby('failure')['serial_number'].size())
+        module_logger.info("Training data statistics on failures and non-failures: ")
+        module_logger.info(train_serial_num.groupby('failure')['serial_number'].size())
+        module_logger.info("Validation data statistics on failures and non-failures: ")
+        module_logger.info(val_serial_num.groupby('failure')['serial_number'].size())
+        module_logger.info("Testing data statistics on failures and non-failures: ")
+        module_logger.info(test_serial_num.groupby('failure')['serial_number'].size())
 
         # check that no serial number exists in both groups
-        lprint("Do the train and validation sets overlap ?")
-        lprint(sum([int(x==y) for x in train_serial_num['serial_number'].values.tolist() for y in val_serial_num['serial_number'].values.tolist()]) > 0)
+        module_logger.info("Do the train and validation sets overlap ?")
+        module_logger.info(sum([int(x==y) for x in train_serial_num['serial_number'].values.tolist() for y in val_serial_num['serial_number'].values.tolist()]) > 0)
 
-        lprint("Do the train and test sets overlap ?")
-        lprint(sum([int(x==y) for x in train_serial_num['serial_number'].values.tolist() for y in test_serial_num['serial_number'].values.tolist()]) > 0)
+        module_logger.info("Do the train and test sets overlap ?")
+        module_logger.info(sum([int(x==y) for x in train_serial_num['serial_number'].values.tolist() for y in test_serial_num['serial_number'].values.tolist()]) > 0)
 
-        lprint("Do the test and validation sets overlap ?")
-        lprint(sum([int(x==y) for x in test_serial_num['serial_number'].values.tolist() for y in val_serial_num['serial_number'].values.tolist()]) > 0)
+        module_logger.info("Do the test and validation sets overlap ?")
+        module_logger.info(sum([int(x==y) for x in test_serial_num['serial_number'].values.tolist() for y in val_serial_num['serial_number'].values.tolist()]) > 0)
 
         train = self._mod_data(data[data['serial_number'].isin(train_serial_num['serial_number'].values.tolist())])
         val = self._mod_data(data[data['serial_number'].isin(val_serial_num['serial_number'].values.tolist())])
@@ -251,28 +260,31 @@ def get_data_obj(args,data_opt):
     # TODO: determine the dataset num classes automatically
     if data_opt == 'backblaze':
 
-
-        # TODO: Need to find better way to do this
-        hist = 4
-        pred_window = 3
         dirloc = './data/backblaze/raw_data/'
 
         try:
-            train_data = cPickle.load(open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_train.pkl', 'rb'))
-            val_data = cPickle.load(open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_val.pkl', 'rb'))
-            test_data = cPickle.load(open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_test.pkl', 'rb'))
+            train_data = pickle.load(open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' +
+                                         str(args['hist']) + '_' + str(args['pred_window']) + '_train.pkl','rb'))
+            val_data = pickle.load(open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' +
+                                         str(args['hist']) + '_' + str(args['pred_window']) + '_val.pkl','rb'))
+            test_data = pickle.load(open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' +
+                                         str(args['hist']) + '_' + str(args['pred_window']) + '_test.pkl','rb'))
         except:
-            backblaze_data = blackblazeReader(dirloc, args['drive_model'], hist, pred_window)
+            backblaze_data = blackblazeReader(dirloc, args['drive_model'], args['hist'], args['pred_window'])
             train_data, val_data, test_data = backblaze_data.train_test_split(args['split_ratio'])
+            print("Saving the datasets")
 
             # Saved the train, val and test sets for future work, as they take a lot of time to prepare
-            cPickle.dump(train_data, open('./data/backblaze/processed_data/' + str(args.drive_model) + '_train.pkl','w'))
-            cPickle.dump(val_data, open('./data/backblaze/processed_data/' + str(args.drive_model) + '_val.pkl', 'w'))
-            cPickle.dump(test_data, open('./data/backblaze/processed_data/' + str(args.drive_model) + '_test.pkl', 'w'))
+            pickle.dump(train_data, open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' +
+                                         str(args['hist']) + '_' + str(args['pred_window']) + '_train.pkl','wb'))
+            pickle.dump(val_data, open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' +
+                                         str(args['hist']) + '_' + str(args['pred_window']) + '_val.pkl','wb'))
+            pickle.dump(test_data, open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' +
+                                         str(args['hist']) + '_' + str(args['pred_window']) + '_test.pkl','wb'))
 
         op_channels = 2
-        seq_len = hist
-        ip_channels = 14
+        seq_len = args['hist']
+        ip_channels = int((train_data.shape[1] - op_channels)/seq_len)
 
         scaler = MinMaxScaler()
         train_data = scaler.fit_transform(train_data)
@@ -281,27 +293,6 @@ def get_data_obj(args,data_opt):
 
     elif data_opt == 'phm08':
         raise NotImplementedError
-
-
-    elif data_opt == 'electric':
-
-        op_channels = 7
-        seq_len = 96
-        ip_channels = 1
-
-        train_data_raw = open('./data/ucr/ElectricDevices_TRAIN','r+')
-        ucr_data = ucrDataReader(train_data_raw,args.split_ratio,op_channels)
-        train_data, val_data, test_data = ucr_data.trainTestSplit()
-
-    elif data_opt == "mnist":
-
-        mnist = input_data.read_data_sets('./data/mnist', one_hot=True)
-        op_channels = 10
-        ip_channels = 28
-        seq_len = 28
-        train_data = np.hstack((mnist.train.images, mnist.train.labels))
-        val_data = np.hstack((mnist.validation.images, mnist.validation.labels))
-        test_data = np.hstack((mnist.test.images, mnist.test.labels))
 
     else:
         raise ValueError("Dataset option provided does not exist")
@@ -352,22 +343,23 @@ class balBatchGenerator(object):
         # determine unbalanced ratio
         labels = np.argmax(data[:,-self.op_channels:],axis=1)
         self.uniq_labels, uniq_idx, label_count = np.unique(labels,return_inverse=True,return_counts=True)
-        print self.uniq_labels, label_count
+        module_logger.info("Labels: "+ ",".join([str(x) for x in self.uniq_labels]))
+        module_logger.info("Counts: "+ ",".join([str(x) for x in label_count]))
 
         # for given batch_size determine size of each label
         self.label_ratio_batch = {}
         for label,ratio in label_ratio.items():
             self.label_ratio_batch[label] = int(np.floor(ratio*self.batch_size))
         diff = self.batch_size - sum(self.label_ratio_batch.values())
-        print self.label_ratio_batch
+        module_logger.info("Ratios: " + ",".join([str(x) for x in self.label_ratio_batch]))
 
         i = 0
         while diff > 0:
-            label = self.label_ratio_batch.keys()[i]
+            label = list(self.label_ratio_batch.keys())[i]
             self.label_ratio_batch[label] += 1
             diff -= 1
             i += 1
-        print self.label_ratio_batch
+        module_logger.info("Adjusted Ratios: " + ",".join([str(x) for x in self.label_ratio_batch]))
 
         self.label_idx_data = {}
         self.label_counter = {}

@@ -6,6 +6,9 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 from layers import *
+import logging
+
+module_logger = logging.getLogger('timeSeriesDL.models')
 
 # TODO: Add dropout and batch re-norm
 class oneDCNN(object):
@@ -74,37 +77,37 @@ class oneDCNN(object):
         self.input_layer_x = tf.placeholder(tf.float32,(self.batch_size,self.seq_len,self.ip_channels),'input_layer_x')
         prev_layer = self.input_layer_x
 
-        print self.layer_params
-
+        key_list = list(self.layer_params.keys())[::-1]
+        values_list = list(self.layer_params.values())[::-1]
         # iteratively build the layers
         for i in range(self.num_layers):
-            if self.layer_params.keys()[i].split('_')[1] == 'conv':
+            if key_list[i].split('_')[1] == 'conv':
 
-                print "Building conv layer for "+str(i)
-                kernel_width, kernel_op_channel, stride, padding = self.layer_params.values()[i]
+                logging.info("Building conv layer for "+str(i))
+                kernel_width, kernel_op_channel, stride, padding = values_list[i]
                 kernel_ip_channel = prev_layer.get_shape()[-1]
                 kernel_size = [kernel_width,kernel_ip_channel,kernel_op_channel]
                 prev_layer = self.build_cnn_layer(prev_layer,kernel_size,stride,padding,'conv_'+str(i))
 
-            elif self.layer_params.keys()[i].split('_')[1] == 'full':
+            elif key_list[i].split('_')[1] == 'full':
 
-                print "Building full layer for "+str(i)
+                logging.info("Building full layer for "+str(i))
 
-                if self.layer_params.keys()[i-1].split('_')[1] != 'full':
+                if key_list[i-1].split('_')[1] != 'full':
                     row, col, channel = prev_layer.get_shape()
                     prev_layer = tf.reshape(prev_layer,[-1,int(col*channel)])
                     ip_size = col*channel
-                    op_size = self.layer_params.values()[i]
+                    op_size = values_list[i]
                     prev_layer = self.build_full_layer(prev_layer,ip_size,op_size,'full_'+str(i))
                 else:
-                    op_size = self.layer_params.values()[i]
+                    op_size = values_list[i]
                     ip_size = prev_layer.get_shape()[-1]
                     prev_layer = self.build_full_layer(prev_layer,ip_size,op_size,'full_'+str(i))
 
-            elif self.layer_params.keys()[i].split('_')[1] == 'conv_pool':
+            elif key_list[i].split('_')[1] == 'conv_pool':
 
-                print "Building conv_pool layer for "+str(i)
-                kernel_width, kernel_op_channel, stride, padding, pool_size = self.layer_params.values()[i]
+                logging.info("Building conv_pool layer for "+str(i))
+                kernel_width, kernel_op_channel, stride, padding, pool_size = values_list[i]
                 kernel_ip_channel = prev_layer.get_shape()[-1]
                 kernel_size = [kernel_width,kernel_ip_channel,kernel_op_channel]
                 prev_layer = self.build_cnn_pool_layer(prev_layer,kernel_size,stride,padding,pool_size,'conv_pool_'+str(i))
@@ -114,7 +117,7 @@ class oneDCNN(object):
 
         # need to flatten the output if the final layer is not a fully connected layer
         final_layer = prev_layer
-        if self.layer_params.keys()[-1].split('_')[1] != 'full':
+        if key_list[-1].split('_')[1] != 'full':
             row, col, channel = final_layer.get_shape()
             final_layer = tf.reshape(final_layer,[-1,int(col*channel)])
 
@@ -246,8 +249,11 @@ class oneDMultiChannelCNN(object):
                                                        [self.seq_len,self.seq_len,self.seq_len,self.seq_len,
                                                         self.ss1_len,self.ss2_len,self.ss3_len])
 
+        key_list = list(self.layer_params.keys())[::-1]
+        values_list = list(self.layer_params.values())[::-1]
+
         # Gather the kernel parameters and perform 1st convolution layer and concantate
-        kernel_width, kernel_op_channel, stride, padding = self.layer_params.values()[0]
+        kernel_width, kernel_op_channel, stride, padding = values_list[0]
         kernel_size = [kernel_width,self.ip_channels,kernel_op_channel]
 
         org_conv_op = self.build_cnn_layer(org,kernel_size,stride,padding,'org_conv_op')
@@ -265,33 +271,33 @@ class oneDMultiChannelCNN(object):
         # iteratively build the layers
         # TODO: Check with tensorboard if this is being done accurately
         for i in range(1,self.num_layers):
-            if self.layer_params.keys()[i].split('_')[1] == 'conv':
+            if key_list[i].split('_')[1] == 'conv':
 
-                print "Building conv layer for " + str(i)
-                kernel_width, kernel_op_channel, stride, padding = self.layer_params.values()[i]
+                logging.info("Building conv layer for " + str(i))
+                kernel_width, kernel_op_channel, stride, padding = values_list[i]
                 kernel_ip_channel = prev_layer.get_shape()[-1]
                 kernel_size = [kernel_width, kernel_ip_channel, kernel_op_channel]
                 prev_layer = self.build_cnn_layer(prev_layer, kernel_size, stride, padding, 'conv_' + str(i))
 
-            elif self.layer_params.keys()[i].split('_')[1] == 'full':
+            elif key_list[i].split('_')[1] == 'full':
 
-                print "Building full layer for " + str(i)
+                logging.info("Building full layer for " + str(i))
 
-                if self.layer_params.keys()[i - 1].split('_')[1] != 'full':
+                if key_list[i - 1].split('_')[1] != 'full':
                     row, col, channel = prev_layer.get_shape()
                     prev_layer = tf.reshape(prev_layer, [-1, int(col * channel)])
                     ip_size = col * channel
-                    op_size = self.layer_params.values()[i]
+                    op_size = key_list[i]
                     prev_layer = self.build_full_layer(prev_layer, ip_size, op_size, 'full_' + str(i))
                 else:
-                    op_size = self.layer_params.values()[i]
+                    op_size = values_list[i]
                     ip_size = prev_layer.get_shape()[-1]
                     prev_layer = self.build_full_layer(prev_layer, ip_size, op_size, 'full_' + str(i))
 
-            elif self.layer_params.keys()[i].split('_')[1] == 'conv_pool':
+            elif key_list[i].split('_')[1] == 'conv_pool':
 
-                print "Building conv_pool layer for " + str(i)
-                kernel_width, kernel_op_channel, stride, padding, pool_size = self.layer_params.values()[i]
+                logging.info("Building conv_pool layer for " + str(i))
+                kernel_width, kernel_op_channel, stride, padding, pool_size = values_list[i]
                 kernel_ip_channel = prev_layer.get_shape()[-1]
                 kernel_size = [kernel_width, kernel_ip_channel, kernel_op_channel]
                 prev_layer = self.build_cnn_pool_layer(prev_layer, kernel_size, stride, padding, pool_size,
@@ -302,7 +308,7 @@ class oneDMultiChannelCNN(object):
 
         # need to flatten the output if the final layer is not a fully connected layer
         final_layer = prev_layer
-        if self.layer_params.keys()[-1].split('_')[1] != 'full':
+        if key_list[-1].split('_')[1] != 'full':
             row, col, channel = final_layer.get_shape()
             final_layer = tf.reshape(final_layer, [-1, int(col * channel)])
 

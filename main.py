@@ -6,32 +6,34 @@ from read_data import *
 from train_eval import *
 import time
 from collections import OrderedDict, defaultdict
-from utils import *
+from itertools import product
+from sklearn.grid_search import ParameterGrid
 import logging
 import os
 
 def main():
 
-    # replacing the data and model arguments with dictionaries to run multiple experiments
-    data_list = ['backblaze','electric']
-    model_list = ['cnn','lstm','lstm_tr']
-
     today = time.strftime("%d_%m_%Y %H_%M_%S")
-    logdir = './logs/'+today+'/'
+    logdir = './logs/'+today
+    logfile = 'logfile'
+    summary_flag = False
 
     if not os.path.exists(logdir):
         os.makedirs(logdir)
 
-    logging.basicConfig(level=logging.DEBUG, filename=logdir+'logfile', filemode='a+', \
-                        format='%(asctime)-15s %(levelname)-8s %(message)s')
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)-15s %(levelname)-8s %(message)s', \
+                        handlers=[logging.FileHandler("{0}/{1}.log".format(logdir,logfile)),logging.StreamHandler()])
+    logger = logging.getLogger('timeSeriesDL')
+
+    f = open(logdir + '/results.csv', 'w+')
 
     for itr_data, itr_model in product(data_list,model_list):
 
-        lprint("Running model: "+str(itr_model)+" for dataset: "+str(itr_data))
+        logger.info("Running model: "+str(itr_model)+" for dataset: "+str(itr_data))
 
         # grid of params for the data and the model
-        args_data = paramGrid(data_args[itr_data])
-        args_model = paramGrid(model_args[itr_model])
+        args_data = ParameterGrid(data_args[itr_data])
+        args_model = ParameterGrid(model_args[itr_model])
 
         # Each model may have a grid of parameters to check over
         # There may be data parameters for each dataset also !
@@ -41,37 +43,21 @@ def main():
             # based on the data_param determine the dataset to be downloaded and split
             train_data, val_data, test_data, ip_channel, op_channel, seq_len = get_data_obj(data_param,itr_data)
 
-            logdir += 'data_param_'+str(it)+'/'
             if not os.path.exists(logdir):
                 os.makedirs(logdir)
 
-            f = open(logdir+'config.csv','w+')
-            f.write(str(it)+'\t'+str(data_param.items()))
-            f.write('\n')
+            # TODO: Kaushik use a json string to write data params, model params and results
 
             for ix, model_param in enumerate(args_model):
+                f.write(str(data_param.items())+'\t')
+                f.write(str(it)+'_'+str(ix)+'\t'+str(model_param.items())+'\t')
 
-                f.write(str(it)+'_'+str(ix)+'\t'+str(model_param.items()))
-                f.write('\n')
+                if not os.path.exists(logdir+'/model_'+str(ix)):
+                    os.makedirs(logdir+'/model_'+str(ix))
 
                 # Training section
-                lprint("Training Dataset Shape: ")
-                lprint(train_data.shape)
-
-                '''
-                if args_model.model == 'oneDMultiChannelCNN':
-                    train_data_new, args_model.sub_sample_lens = low_pass_and_subsample(train_data)
-                    val_data_new, args_model.sub_sample_lens = low_pass_and_subsample(val_data)
-                    test_data_new, args_model.sub_sample_lens = low_pass_and_subsample(test_data)
-                elif args_model.model == 'freqCNN':
-                    train_data_new = freq_transform(train_data)
-                    val_data_new = freq_transform(val_data)
-                    test_data_new = freq_transform(test_data)
-                else:
-                    train_data_new = train_data
-                    val_data_new = val_data
-                    test_data_new = test_data
-                '''
+                logger.info("Training Dataset Shape: ")
+                logger.info(train_data.shape)
 
                 batch_train = balBatchGenerator(train_data, data_param['batch_size'], ip_channel,
                                                 op_channel, seq_len, data_param['label_ratio'])
@@ -86,55 +72,59 @@ def main():
                 model_param['weights'] = data_param['label_weights']
 
                 # train and return the saved trainable parameters of the model
-                train(itr_model, model_param, batch_train, logdir, ix)
+                train(itr_model, model_param, batch_train, logdir, ix, summary_flag)
 
                 # Validation section
-                lprint("Validation DataSet Shape: ")
-                lprint(val_data.shape)
+                logger.info("Validation DataSet Shape: ")
+                logger.info(val_data.shape)
 
                 model_param['max_batches_val'] = batch_val.get_num_batches()
-                val(itr_model, model_param, batch_val, "val", logdir, ix)
+                roc_auc, pr_auc = val(itr_model, model_param, batch_val, "val", logdir, ix, summary_flag)
+                f.write(str(roc_auc) + '\t' + str(pr_auc))
+                f.write('\n')
 
-            f.close()
+    f.close()
 
 
 if __name__ == "__main__":
-    dnn_args = {'layer_sizes': [[64, 32], [64, 32, 16], [128, 64, 32]], 'num_epochs': [5, 7],
+    dnn_args = {'layer_sizes': [[64, 32], [64, 32, 16], [128, 64, 32]], 'num_epochs': [10, 20, 30],
                 'lr_rate': [0.01, 0.001, 0.0001], 'lr_decay': [0.97, 0.9, 0.8], 'weight_reg': [1, 0.1, 0.01, 0.001],
                 'cost_reg': [1, 0.1, 0.01, 0.001]}
 
-    lstm_args = {'cell': ['lstm'], 'num_layers': [1, 2, 3], 'hidden_units': [16, 32, 64, 128],
-                 'num_epochs': [8, 10, 12], 'lr_rate': [0.001, 0.0001], 'lr_decay': [0.97, 0.9],
-                 'grad_clip': [3.0, 5.0, 8.0]}
+    lstm_args = {'cell': 'lstm', 'num_layers': [1, 2, 3], 'hidden_units': [16, 32, 64],
+                 'num_epochs': [20, 30], 'lr_rate': [0.001, 0.0001], 'lr_decay': 0.97,
+                 'grad_clip': [3.0, 5.0]}
 
-    lstmtr_args = {'cell': ['lstm'], 'num_layers': [1, 2, 3], 'hidden_units': [16, 32, 64, 128],
-                   'num_epochs': [8, 10, 12], 'lr_rate': [0.001, 0.0001], 'lr_decay': [0.97, 0.9],
-                   'grad_clip': [3.0, 5.0, 8.0]}
+    lstmtr_args = {'cell': ['lstm'], 'num_layers': [1, 2, 3], 'hidden_units': [16, 32, 64],
+                   'num_epochs': [20, 30], 'lr_rate': [0.001, 0.0001], 'lr_decay': 0.97,
+                   'grad_clip': [3.0, 5.0]}
 
     # TODO: Add more layers
     layer_params_opt_1 = OrderedDict({'2_full': (64), '1_conv': (3, 64, 1, 'VALID')})
     layer_params_opt_2 = OrderedDict({'2_full': (256), '1_conv': (3, 128, 1, 'VALID')})
     layer_params_opt_3 = OrderedDict({'3_full': (64), '2_conv': (3, 32, 1, 'VALID'), '1_conv': (1, 64, 1, 'VALID')})
-    cnn_args = {'num_epochs': [5, 8, 10], 'lr_rate': [0.01, 0.001, 0.0001],
-                'lr_decay': [0.97, 0.9], 'layer_params': [layer_params_opt_1, layer_params_opt_2, layer_params_opt_3], 'weight_reg': [1.0, 0.1, 0.01, 0.001],
-                'cost_reg': [1.0, 0.1, 0.01, 0.001]}
+    cnn_args = {'num_epochs': [20, 30], 'lr_rate': [0.001, 0.0001],
+                'lr_decay': 0.9, 'layer_params': layer_params_opt_3, 'weight_reg': [0.01, 0.001],
+                'cost_reg': [0.01, 0.001]}
 
     # TODO: Make the num_layers redundant or derivative from layer_params
-    cnn_multi_args = {'num_layers': [2, 3, 4], 'num_epochs': [5, 8, 10], 'lr_rate': [0.01, 0.001, 0.0001],
+    cnn_multi_args = {'num_layers': [2, 3, 4], 'num_epochs': [10, 20, 30], 'lr_rate': [0.01, 0.001, 0.0001],
                       'lr_decay': [0.97, 0.9], 'layer_params': [layer_params_opt_1, layer_params_opt_2, layer_params_opt_3], 'sub_sample': [],
                       'weight_reg': [1, 0.1, 0.01, 0.001], 'cost_reg': [1, 0.1, 0.01, 0.001]}
 
     list_label_ratio = [{0: 0.9, 1: 0.1}, {0: 0.7, 1: 0.3}, {0: 0.5, 1: 0.5}]
-    list_label_weight = [[0.2, 1], [0.5, 1], [1, 1]]
+    list_label_weight = [[0.2, 1], [0.5, 1]]
     data_args = {
-        'backblaze': {'batch_size': [64, 128, 256], 'split_ratio': [[0.8, 0.1, 0.1]], 'label_ratio': list_label_ratio,
-                      'label_weights': list_label_weight, 'drive_model': ['ST3000DM001','ST4000DM000'], 'max_batches_train': [5000]}, \
-        'electric': {'batch_size': [64], 'split_ratio': [[0.8, 0.1, 0.1]], 'label_ratio': list_label_ratio,
-                     'label_weights': list_label_weight}}
+        'backblaze': {'batch_size': 64, 'split_ratio': [[0.8, 0.1, 0.1]], 'label_ratio': list_label_ratio,
+                      'label_weights': list_label_weight, 'drive_model': ['ST3000DM001','ST4000DM000'], \
+                      'max_batches_train': [5000], 'hist': [4, 7], 'pred_window': [3]}}
 
     model_args = {'lstm': lstm_args, 'cnn': cnn_args, 'lstrm_lr': lstmtr_args, 'dnn': dnn_args,
                   'multi_cnn': cnn_multi_args}
 
+    # replacing the data and model arguments with dictionaries to run multiple experiments
+    data_list = ['backblaze']
+    model_list = ['cnn','lstm','lstm_tr']
 
 
     main()
