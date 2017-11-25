@@ -35,6 +35,38 @@ def print_tensors_in_checkpoint_file(file_name):
             module_logger.info("It's likely that your checkpoint file has been compressed "
                 "with SNAPPY.")
 
+class EarlyStopping(object):
+    '''
+    A basic implementation of early stopping based on Keras Callbacks. Saves the best model for
+    reference and updates it as required (missing in Keras EarlyStoppin).
+    '''
+
+    def __init__(self,monitorargs):
+
+        for key in ['monitor','min_delta','patience','mode']:
+            if key not in monitorargs.keys():
+                raise ValueError(key+" not in provided dictionary")
+
+        self.monitor = monitorargs['monitor']
+        self.min_delta = monitorargs['min_delta']
+        self.patience = monitorargs['patience']
+        self.mode = monitorargs['mode']
+        self.best = np.Inf if self.monitor == np.less else -np.Inf
+        self.monitor_op = np.greater if self.mode == 'max' else np.less
+        self.wait = 0
+
+    def check_model(self,curr_monitor_val):
+
+        if self.monitor_op(curr_monitor_val - self.min_delta,self.best):
+            self.best = curr_monitor_val
+            self.wait = 0
+            return 'save_model'
+        else:
+            if self.wait >= self.patience:
+                return 'terminate_model'
+
+            self.wait += 1
+            return 'continue'
 
 def run_train_epoch(session, model, data, max_batches,sess_summary):
     '''
@@ -79,8 +111,6 @@ def run_val_test_epoch(session, model, data, max_batches,sess_summary):
     softmax_op = np.zeros((max_batches*model.batch_size,model.op_channels))
     y_onehot = np.zeros((max_batches*model.batch_size,model.op_channels))
 
-    #print type(model.input_layer_x), type(model.summaries), type(model.output_prob)
-
     for i in range(max_batches):
         x, y = data.next()
         summary, output_prob = session.run([model.summaries,model.output_prob], feed_dict={model.input_layer_x: x})
@@ -96,7 +126,10 @@ def run_val_test_epoch(session, model, data, max_batches,sess_summary):
 
     return softmax_op, y_onehot
 
-def train(model_opt, model_args, batch_train, logdir, ix, summ_flag):
+def train(model_opt, model_args, batch_train, batch_val, logdir, ix, early_stop_args, summ_flag):
+
+    # setup the early stopping routine with parameters passed
+    valmonitor = EarlyStopping(early_stop_args)
 
     # Initialize session and graph
     # Limit usage to 50% of the GPU resources available
@@ -122,37 +155,57 @@ def train(model_opt, model_args, batch_train, logdir, ix, summ_flag):
             tf.initialize_all_variables().run()
 
             train_writer = None
+            val_writer = None
             if summ_flag:
                 train_writer = tf.summary.FileWriter(logdir+'/model_'+str(ix)+'/train', session.graph)
+                val_writer = tf.summary.FileWriter(logdir + '/model_' + str(ix) + '/val', session.graph)
             saver = tf.train.Saver()
             cost_over_batches = []
 
+            best_y_val_prob, best_y_val_onehot = None
             for i in range(model_args['num_epochs']):
+
                 lr_decay = model_args['lr_decay'] ** max(i - 2.0, 0.0)
                 train_model.assign_lr(session, model_args['lr_rate'] * lr_decay)
 
                 # run a complete epoch and return appropriate variables
                 y_prob, y_onehot, y_cost = run_train_epoch(session, train_model, batch_train, model_args['max_batches_train'], train_writer)
 
-                module_logger.info("For model_"+str(ix)+" Confusion metrics post epoch "+str(i)+" :")
-                module_logger.info(compConfusion(y_prob,y_onehot))
+                #module_logger.info("For model_"+str(ix)+" Confusion metrics post epoch "+str(i)+" :")
+                #module_logger.info(compConfusion(y_prob,y_onehot))
 
                 cost_over_batches += y_cost
 
-                #if i == model_args['num_epochs']/2:
-                    #saver.save(session, logdir+'model_'+str(ix)+'/train/train-model-iter', global_step=i)
+                # For every val_check epoch, check the validation scores and see if they have improved from the previous best
+                y_val_prob, y_val_onehot = run_val_test_epoch(session, train_model, batch_val, model_args['max_batches_val'],val_writer)
+                curr_pr, curr_roc, curr_f1, curr_acc = compMetrics(y_val_prob,y_val_onehot)
 
-            saver.save(session, logdir+'/model_'+str(ix)+'/train/final-model')
+                if early_stop_args['monitor']  == 'pr':
+                    opt = valmonitor.check_model(curr_pr)
+                elif early_stop_args['monitor'] == 'roc':
+                    opt = valmonitor.check_model(curr_roc)
+                elif early_stop_args['monitor'] == 'f1':
+                    opt = valmonitor.check_model(curr_f1)
+                elif early_stop_args['monitor'] == 'acc':
+                    opt = valmonitor.check_model(curr_acc)
+                else:
+                    raise ValueError("early stopping monitor not in list")
+
+                if opt == 'save_model':
+                    saver.save(session, logdir + '/model_' + str(ix) + '/train/best-model')
+                    best_y_val_prob = y_val_prob
+                    best_y_val_onehot = y_val_onehot
+                if opt == 'terminate_model':
+                    break
+
             if summ_flag:
                 train_writer.close()
 
-            plt.plot(np.linspace(1,len(cost_over_batches),len(cost_over_batches)),cost_over_batches)
-            plt.title('Cost per batch over the training run')
-            plt.xlabel('# batch')
-            plt.ylabel('avg. cost per batch')
-            plt.savefig(logdir+'/model_'+str(ix)+'_traincost.png')
+            costTrainPlot(cost_over_batches, logdir, '/model_' + str(ix))
+            roc_auc, pr_auc = rocPrAucPlot(best_y_val_prob, best_y_val_onehot, logdir, '/model_' + str(ix))
+            return roc_auc, pr_auc
 
-def val(model_opt, model_args, batch_val, mode, logdir, ix, summ_flag):
+def test(model_opt, model_args, batch_val, mode, logdir, ix, summ_flag):
     # Pass mode as either "Val" or "Test"
 
     # Limit usage to 50% of the GPU resources available
@@ -182,11 +235,7 @@ def val(model_opt, model_args, batch_val, mode, logdir, ix, summ_flag):
             if summ_flag:
                 val_writer = tf.summary.FileWriter(logdir+'/model_'+str(ix)+'/val', session.graph)
             restore_var = tf.train.Saver()
-            restore_var.restore(session, logdir+'/model_'+str(ix)+'/train/final-model')
-
-            #print type(val_model.input_layer_x)
-            #print [var.name for var in tf.get_default_graph().get_operations()]
-            #print [var.op.name for var in tf.get_default_graph().get_collection(tf.GraphKeys.GLOBAL_VARIABLES)]
+            restore_var.restore(session, logdir+'/model_'+str(ix)+'/train/best-model')
 
             # run a complete epoch and return appropriate variables
             y_prob, y_onehot = run_val_test_epoch(session, val_model, batch_val, model_args['max_batches_val'], val_writer)
@@ -194,7 +243,7 @@ def val(model_opt, model_args, batch_val, mode, logdir, ix, summ_flag):
             module_logger.info("Confusion metrics post Validation" + model_args['mode'] + " :")
             module_logger.info(compConfusion(y_prob, y_onehot))
 
-            roc_auc, pr_auc = rocPrAuc(y_prob, y_onehot, logdir, '/model_'+str(ix))
+            roc_auc, pr_auc = rocPrAucPlot(y_prob, y_onehot, logdir, '/model_'+str(ix))
 
             if summ_flag:
                 val_writer.close()
