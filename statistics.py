@@ -13,6 +13,7 @@ def costTrainPlot(cost, logdir, custom_txt):
     plt.xlabel('# batch')
     plt.ylabel('avg. cost per batch')
     plt.savefig(logdir + custom_txt + '_traincost.png')
+    plt.close()
 
 def compConfusion(op_prob,y_onehot):
     '''
@@ -84,5 +85,6 @@ def rocPrAucPlot(op_prob,y_onehot,logdir,folder):
     axes[1].set_title('ROC Curve '+str(auc_score))
     axes[0].set_title('PR Curve '+str(pr_score))
     plt.savefig(logdir+folder+'_roc_auc_curves.png')
+    plt.close()
 
     return auc_score, pr_score

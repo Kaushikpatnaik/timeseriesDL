@@ -260,10 +260,10 @@ class lstmLayer(object):
                 with tf.variable_scope(scope):
                     ip2hiddenW = tf.get_variable('ip2hidden',
                                                  shape=[input_data.get_shape()[1], self.hidden_units],
-                                                 dtype=tf.float32,initializer=tf.random_uniform_initializer())
+                                                 dtype=tf.float32,initializer=tf.truncated_normal_initializer)
                     hidden2hiddenW = tf.get_variable('hidden2hidden',
                                                      shape=[self.hidden_units, self.hidden_units],
-                                                     dtype=tf.float32,initializer=tf.random_uniform_initializer())
+                                                     dtype=tf.float32,initializer=tf.truncated_normal_initializer)
                     biasW = tf.get_variable('biasW', shape=[self.hidden_units],
                                             dtype=tf.float32,initializer=tf.constant_initializer(0.0))
                     ip2hidden = tf.matmul(input_data, ip2hiddenW) + biasW
@@ -313,7 +313,7 @@ class DeepLSTM(object):
                     # hidden unit is propagated as the input_data
                     curr_input, new_state = cell(curr_input, curr_state)
                     new_states.append(new_state)
-            return curr_input, tf.concat(1, new_states)
+            return curr_input, tf.concat(new_states, 1)
 
     def zero_state(self, batch_size, dtype):
         '''

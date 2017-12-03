@@ -85,23 +85,20 @@ def main():
 
 
 if __name__ == "__main__":
-    dnn_args = {'layer_sizes': [[64, 32], [64, 32, 16], [128, 64, 32]], 'num_epochs': [50],
-                'lr_rate': [0.001, 0.0001], 'lr_decay': [0.9], 'weight_reg': [0.01, 0.001],
-                'cost_reg': [0.01, 0.001]}
 
-    lstm_args = {'cell': 'lstm', 'num_layers': [1, 2, 3], 'hidden_units': [16, 32, 64],
-                 'num_epochs': [50], 'lr_rate': [0.001, 0.0001], 'lr_decay': 0.97,
+    lstm_args = {'cell': ['lstm'], 'num_layers': [1,2], 'hidden_units': [16, 32, 64],
+                 'num_epochs': [50], 'lr_rate': [0.1, 0.01, 0.001], 'lr_decay': [0.97],
                  'grad_clip': [3.0, 5.0]}
 
-    lstmtr_args = {'cell': ['lstm'], 'num_layers': [1, 2, 3], 'hidden_units': [16, 32, 64],
-                   'num_epochs': [50], 'lr_rate': [0.001, 0.0001], 'lr_decay': 0.97,
+    lstmtr_args = {'cell': ['lstm'], 'num_layers': [1,2], 'hidden_units': [16, 32, 64],
+                   'num_epochs': [50], 'lr_rate': [0.1, 0.01, 0.001], 'lr_decay': [0.97],
                    'grad_clip': [3.0, 5.0]}
 
     # TODO: Add more layers
     layer_params_opt_1 = OrderedDict({'2_full': (64), '1_conv': (3, 64, 1, 'VALID')})
     layer_params_opt_2 = OrderedDict({'2_full': (256), '1_conv': (3, 128, 1, 'VALID')})
     layer_params_opt_3 = OrderedDict({'3_full': (32), '2_conv': (3, 32, 1, 'VALID'), '1_conv': (1, 64, 1, 'VALID')})
-    cnn_args = {'num_epochs': [30], 'lr_rate': [0.001, 0.0001],
+    cnn_args = {'num_epochs': [50], 'lr_rate': [0.1, 0.01, 0.001],
                 'lr_decay': [0.9], 'layer_params': [layer_params_opt_3], 'weight_reg': [0.01, 0.001],
                 'cost_reg': [0.01, 0.001]}
 
@@ -113,14 +110,15 @@ if __name__ == "__main__":
     list_label_weight = [[0.2, 1], [0.5, 1]]
     data_args = {
         'backblaze': {'batch_size': [64], 'split_ratio': [[0.8, 0.1, 0.1]], 'label_ratio': list_label_ratio,
-                      'label_weights': list_label_weight, 'drive_model': ['ST3000DM001','ST4000DM000'], \
+                      'label_weights': list_label_weight, 'drive_model': ['ST3000DM001'], \
                       'max_batches_train': [5000], 'hist': [4,7], 'pred_window': [3], 'year': ['2015']}}
 
-    model_args = {'lstm': lstm_args, 'cnn': cnn_args, 'lstrm_lr': lstmtr_args, 'dnn': dnn_args}
+    model_args = {'lstm': lstm_args, 'cnn': cnn_args, 'lstrm_lr': lstmtr_args}
 
     # replacing the data and model arguments with dictionaries to run multiple experiments
     data_list = ['backblaze']
     model_list = ['cnn','lstm','lstm_tr']
+    #model_list = ['lstm', 'lstm_tr']
 
 
     main()

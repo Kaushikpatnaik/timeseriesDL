@@ -73,7 +73,6 @@ def run_train_epoch(session, model, data, max_batches,sess_summary, epoch_num):
     Run the model under given session for max_batches based on args
     '''
 
-    start_time = time.time()
     softmax_op = np.zeros((max_batches*model.batch_size,model.op_channels))
     cost_trajectory = []
     y_onehot = np.zeros((max_batches*model.batch_size,model.op_channels))
@@ -90,13 +89,6 @@ def run_train_epoch(session, model, data, max_batches,sess_summary, epoch_num):
         y_onehot[i*len(y):(i+1)*len(y),:] = y
         epoch_cost += cur_cost
 
-    #print "Batch Cross Entropy Loss: "
-    #print cur_cost
-
-    end_time = time.time()
-
-    #module_logger.info("Runtime of one epoch: ")
-    #module_logger.info(end_time-start_time)
     avg_cost = epoch_cost/max_batches
     module_logger.info("Epcoh: %d, Average cost per epoch: %f",epoch_num,avg_cost)
 
@@ -107,7 +99,6 @@ def run_val_test_epoch(session, model, data, max_batches,sess_summary):
     Run the model under given session for max_batches based on args
     '''
 
-    start_time = time.time()
     softmax_op = np.zeros((max_batches*model.batch_size,model.op_channels))
     y_onehot = np.zeros((max_batches*model.batch_size,model.op_channels))
 
@@ -119,11 +110,6 @@ def run_val_test_epoch(session, model, data, max_batches,sess_summary):
             sess_summary.add_summary(summary,i)
         softmax_op[i*len(y):(i+1)*len(y),:] = output_prob
         y_onehot[i*len(y):(i + 1)*len(y),:] = y
-
-    end_time = time.time()
-
-    #module_logger.info("Runtime of one epoch: ")
-    #module_logger.info(end_time-start_time)
 
     return softmax_op, y_onehot
 
@@ -152,7 +138,7 @@ def train(model_opt, model_args, batch_train, batch_val, logdir, ix, early_stop_
             train_model = model(model_args)
             train_model.build_graph()
 
-            tf.initialize_all_variables().run()
+            tf.global_variables_initializer().run()
 
             train_writer = None
             val_writer = None
@@ -171,6 +157,7 @@ def train(model_opt, model_args, batch_train, batch_val, logdir, ix, early_stop_
                 # run a complete epoch and return appropriate variables
                 y_prob, y_onehot, y_cost = run_train_epoch(session, train_model, batch_train, model_args['max_batches_train'], train_writer, i)
                 cost_over_batches += y_cost
+                print(len(cost_over_batches))
 
                 # For every val_check epoch, check the validation scores and see if they have improved from the previous best
                 y_val_prob, y_val_onehot = run_val_test_epoch(session, train_model, batch_val, model_args['max_batches_val'], val_writer)

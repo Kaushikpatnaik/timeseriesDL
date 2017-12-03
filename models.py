@@ -304,7 +304,7 @@ class LSTM(object):
         self.cell = args['cell']
         self.hidden_units = args['hidden_units']
         self.ip_channels = args['ip_channels']
-        self.op_classes = args['op_channels']
+        self.op_channels = args['op_channels']
         self.mode = args['mode']
         self.init_lr = args['lr_rate']
         self.grad_clip = args['grad_clip']
@@ -347,9 +347,9 @@ class LSTM(object):
         self.final_state = state
         self.final_output = output
 
-        softmax_w = tf.get_variable('softmax_w', [self.hidden_units, self.op_classes],dtype=tf.float32,
+        softmax_w = tf.get_variable('softmax_w', [self.hidden_units, self.op_channels],dtype=tf.float32,
                                     initializer=tf.random_uniform_initializer())
-        softmax_b = tf.get_variable('softmax_b', [self.op_classes],dtype=tf.float32,
+        softmax_b = tf.get_variable('softmax_b', [self.op_channels],dtype=tf.float32,
                                     initializer=tf.random_uniform_initializer())
 
         self.logits = tf.matmul(self.final_output, softmax_w) + softmax_b
@@ -361,7 +361,7 @@ class LSTM(object):
     def _add_train_nodes(self):
 
         # define placeholder for target layer
-        self.input_layer_y = tf.placeholder(tf.float32, [self.batch_size,self.op_classes],name='input_layer_y')
+        self.input_layer_y = tf.placeholder(tf.float32, [self.batch_size,self.op_channels],name='input_layer_y')
 
         # sequence loss by example
         # TODO: Implement proper loss function for encoder like structure of LSTM
@@ -401,7 +401,7 @@ class LSTMTargetReplication(object):
         self.cell = args['cell']
         self.hidden_units = args['hidden_units']
         self.ip_channels = args['ip_channels']
-        self.op_classes = args['op_channels']
+        self.op_channels = args['op_channels']
         self.mode = args['mode']
         self.init_lr = args['lr_rate']
         self.grad_clip = args['grad_clip']
@@ -446,9 +446,9 @@ class LSTMTargetReplication(object):
 
         self.final_output = tf.reshape(tf.concat_v2(outputs,1),[-1,self.hidden_units])
 
-        softmax_w = tf.get_variable('softmax_w', [self.hidden_units, self.op_classes],dtype=tf.float32,
+        softmax_w = tf.get_variable('softmax_w', [self.hidden_units, self.op_channels],dtype=tf.float32,
                                     initializer=tf.random_uniform_initializer())
-        softmax_b = tf.get_variable('softmax_b', [self.op_classes],dtype=tf.float32,
+        softmax_b = tf.get_variable('softmax_b', [self.op_channels],dtype=tf.float32,
                                     initializer=tf.random_uniform_initializer())
 
         # logits is now of shape [self.batch_size x self.seq_len, self.op_classes]
@@ -456,16 +456,16 @@ class LSTMTargetReplication(object):
 
         # get probabilities for these logits through softmax (only keep the last seq output)
 
-        final_seq_op = tf.squeeze(tf.slice(tf.reshape(self.logits,[self.batch_size,self.seq_len,self.op_classes]),[0,self.seq_len-1,0],[-1,1,-1]))
+        final_seq_op = tf.squeeze(tf.slice(tf.reshape(self.logits,[self.batch_size,self.seq_len,self.op_channels]),[0,self.seq_len-1,0],[-1,1,-1]))
         self.output_prob = tf.nn.softmax(final_seq_op)
         activation_summary(self.output_prob)
 
     def _add_train_nodes(self):
 
         # define placeholder for target layer
-        self.input_layer_y = tf.placeholder(tf.float32, [self.batch_size,self.op_classes],name='input_layer_y')
+        self.input_layer_y = tf.placeholder(tf.float32, [self.batch_size,self.op_channels],name='input_layer_y')
 
-        tiled_input_layer_y = tf.reshape(tf.tile(self.input_layer_y,tf.constant([1,self.seq_len],dtype=tf.int32)),[self.batch_size*self.seq_len,self.op_classes])
+        tiled_input_layer_y = tf.reshape(tf.tile(self.input_layer_y,tf.constant([1,self.seq_len],dtype=tf.int32)),[self.batch_size*self.seq_len,self.op_channels])
 
         # sequence loss by example
         # TODO: Implement proper loss function for encoder like structure of LSTM
