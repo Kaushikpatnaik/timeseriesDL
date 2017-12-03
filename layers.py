@@ -168,8 +168,8 @@ def batch_norm_conv(x, n_out, train_mode, scope_name):
     '''
 
     with tf.variable_scope(scope_name):
-        beta = tf.Variable(tf.Constant(0.0, shape=[n_out]), name='beta', trainable = True)
-        gamma = tf.Variable(tf.Constant(1.0, shape=[n_out]), name='gamma', trainable = True)
+        beta = tf.Variable(tf.constant(0.0, shape=[n_out]), name='beta', trainable = True)
+        gamma = tf.Variable(tf.constant(1.0, shape=[n_out]), name='gamma', trainable = True)
         batch_mean, batch_var = tf.nn.moments(x, [0,1,2], name='moments')
         ema = tf.train.ExponentialMovingAverage(decay=0.5)
 
@@ -178,7 +178,11 @@ def batch_norm_conv(x, n_out, train_mode, scope_name):
             with tf.control_dependencies([ema_apply_op]):
                 return tf.identity(batch_mean), tf.identity(batch_var)
 
-        mean, var = tf.cond(train_mode, mean_var_update, lambda: (ema.average(batch_mean), ema.average(batch_var)))
+        if train_mode:
+            mean, var = mean_var_update()
+        else:
+            mean, var = ema.average(batch_mean), ema.average(batch_var)
+
         normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-05)
         return normed
 
@@ -186,7 +190,8 @@ def conv_bn_layer(prev_layer, kernel_size, stride, padding, weight_reg, train_mo
 
         with tf.variable_scope(scope_name):
             kernel = tf.get_variable('conv_weight', shape=kernel_size, dtype=tf.float32,
-                                     initializer=tf.contrib.layers.xavier_initializer,
+                                     initializer= tf.variance_scaling_initializer(
+      scale=1.0, mode="fan_avg", distribution="normal", seed=None, dtype=tf.float32),
                                      regularizer=tf.contrib.layers.l2_regularizer(weight_reg))
             conv_op = tf.nn.conv1d(prev_layer, kernel, stride, padding)
             bias = tf.get_variable('conv_bias', shape=kernel_size[-1], dtype=tf.float32,
@@ -206,7 +211,8 @@ def build_full_layer(prev_layer, ip_size, op_size, weight_reg, scope_name):
     # TODO: pass mean and std dev of initialization as parameters
     with tf.variable_scope(scope_name):
         layer_w = tf.get_variable('layer_w', [ip_size, op_size], dtype=tf.float32,
-                                  initializer=tf.contrib.layers.xavier_initialization,
+                                  initializer=tf.variance_scaling_initializer(
+      scale=1.0, mode="fan_avg", distribution="uniform", seed=None, dtype=tf.float32),
                                   regularizer=tf.contrib.layers.l2_regularizer(weight_reg))
         layer_b = tf.get_variable('layer_b', [op_size], dtype=tf.float32,
                                   initializer= tf.constant_initializer(0.0))

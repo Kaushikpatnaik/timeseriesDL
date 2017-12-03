@@ -91,7 +91,8 @@ class oneDCNN(object):
 
         # softmax output from final layer
         softmax_w = tf.get_variable('softmax_w',[np.prod(final_layer.get_shape()[1:]),self.op_channels],dtype=tf.float32,
-                                    initializer= tf.contrib.layers.xavier_initialization,
+                                    initializer= tf.variance_scaling_initializer(
+      scale=1.0, mode="fan_avg", distribution="normal", seed=None, dtype=tf.float32),
                                     regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
         softmax_b = tf.get_variable('softmax_b',[self.op_channels],dtype=tf.float32)
         self.output = tf.matmul(final_layer,softmax_w) + softmax_b
