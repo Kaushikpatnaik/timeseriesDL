@@ -154,6 +154,67 @@ def artrous_conv1d(value, filters, rate, padding, name=None):
         else:
             raise ValueError("Rate must be >= 1")
 
+def batch_norm_conv(x, n_out, train_mode, scope_name):
+    '''
+    Taken from the following gist
+    https://gist.github.com/tomokishii/0ce3bdac1588b5cca9fa5fbdf6e1c412
+    Batch normalization on convolutional layers
+    x: Input 4D Tensor, [batch_size, height, width, op_channels]
+    n_out: number of output channels
+    train_mode: weather in training or testing phase
+    scope_name: name of the scope
+
+    Return: batch-normalized convolution map
+    '''
+
+    with tf.variable_scope(scope_name):
+        beta = tf.Variable(tf.Constant(0.0, shape=[n_out]), name='beta', trainable = True)
+        gamma = tf.Variable(tf.Constant(1.0, shape=[n_out]), name='gamma', trainable = True)
+        batch_mean, batch_var = tf.nn.moments(x, [0,1,2], name='moments')
+        ema = tf.train.ExponentialMovingAverage(decay=0.5)
+
+        def mean_var_update():
+            ema_apply_op = ema.apply([batch_mean, batch_var])
+            with tf.control_dependencies([ema_apply_op]):
+                return tf.identity(batch_mean), tf.identity(batch_var)
+
+        mean, var = tf.cond(train_mode, mean_var_update, lambda: (ema.average(batch_mean), ema.average(batch_var)))
+        normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-05)
+        return normed
+
+def conv_bn_layer(prev_layer, kernel_size, stride, padding, weight_reg, train_mode, scope_name):
+
+        with tf.variable_scope(scope_name):
+            kernel = tf.get_variable('conv_weight', shape=kernel_size, dtype=tf.float32,
+                                     initializer=tf.contrib.layers.xavier_initializer,
+                                     regularizer=tf.contrib.layers.l2_regularizer(weight_reg))
+            conv_op = tf.nn.conv1d(prev_layer, kernel, stride, padding)
+            bias = tf.get_variable('conv_bias', shape=kernel_size[-1], dtype=tf.float32,
+                                   initializer=tf.constant_initializer(0.0))
+            nonlinear_op = tf.nn.relu(tf.nn.bias_add(conv_op, bias))
+            activation_summary(nonlinear_op)
+            bn_nonlinear_op = batch_norm_conv(nonlinear_op,kernel_size[-1], train_mode, scope_name+'_bn')
+
+        return bn_nonlinear_op
+
+def build_cnn_pool_layer(prev_layer,kernel_size,stride,padding,pool_size,weight_reg,scope_name):
+
+    raise NotImplementedError
+
+def build_full_layer(prev_layer, ip_size, op_size, weight_reg, scope_name):
+
+    # TODO: pass mean and std dev of initialization as parameters
+    with tf.variable_scope(scope_name):
+        layer_w = tf.get_variable('layer_w', [ip_size, op_size], dtype=tf.float32,
+                                  initializer=tf.contrib.layers.xavier_initialization,
+                                  regularizer=tf.contrib.layers.l2_regularizer(weight_reg))
+        layer_b = tf.get_variable('layer_b', [op_size], dtype=tf.float32,
+                                  initializer= tf.constant_initializer(0.0))
+        local = tf.nn.relu(tf.matmul(prev_layer, layer_w) + layer_b)
+        activation_summary(local)
+
+    return local
+
 class lstmLayer(object):
     '''A single LSTM unit with one hidden layer'''
 

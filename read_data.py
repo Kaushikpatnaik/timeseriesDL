@@ -86,7 +86,7 @@ class phmReader(object):
 
 class blackblazeReader(object):
 
-    def __init__(self,dirloc,drive_model,hist,pred_window):
+    def __init__(self,dirloc,drive_model,hist,pred_window,year):
         '''
         Class to read and load the backblaze raw_data dataset
         '''
@@ -95,6 +95,7 @@ class blackblazeReader(object):
         self.hist = hist
         self.pred_window = pred_window
         self.drive_model = drive_model
+        self.data_year = year
 
     def _prune_to_model(self):
         '''
@@ -112,11 +113,12 @@ class blackblazeReader(object):
                 if idx%50 == 0:
                     print(filename, filename[-3:])
                 if os.path.isfile(os.path.join(self.dirloc,filename)) and (filename[-3:]=='csv'):
-                    t_data = pd.read_csv(os.path.join(self.dirloc,filename))
-                    t2_data = t_data[['model','serial_number','failure']].drop_duplicates()
-                    t_data = t_data[t_data['model']==self.drive_model]
-                    data = data.append(t_data)
-                    stats = stats.append(t2_data)
+                    if filename.split('-')[0] == self.data_year:
+                        t_data = pd.read_csv(os.path.join(self.dirloc,filename))
+                        t2_data = t_data[['model','serial_number','failure']].drop_duplicates()
+                        t_data = t_data[t_data['model']==self.drive_model]
+                        data = data.append(t_data)
+                        stats = stats.append(t2_data)
 
             module_logger.info(stats.groupby(['model','failure'])['serial_number'].size().reset_index())
 
@@ -263,23 +265,23 @@ def get_data_obj(args,data_opt):
         dirloc = './data/backblaze/raw_data/'
 
         try:
-            train_data = pickle.load(open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' +
+            train_data = pickle.load(open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' + str(args['year']) + '_' +
                                          str(args['hist']) + '_' + str(args['pred_window']) + '_train.pkl','rb'))
-            val_data = pickle.load(open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' +
+            val_data = pickle.load(open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' + str(args['year']) + '_' +
                                          str(args['hist']) + '_' + str(args['pred_window']) + '_val.pkl','rb'))
-            test_data = pickle.load(open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' +
+            test_data = pickle.load(open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' + str(args['year']) + '_' +
                                          str(args['hist']) + '_' + str(args['pred_window']) + '_test.pkl','rb'))
         except:
-            backblaze_data = blackblazeReader(dirloc, args['drive_model'], args['hist'], args['pred_window'])
+            backblaze_data = blackblazeReader(dirloc, args['drive_model'], args['hist'], args['pred_window'], args['year'])
             train_data, val_data, test_data = backblaze_data.train_test_split(args['split_ratio'])
             print("Saving the datasets")
 
             # Saved the train, val and test sets for future work, as they take a lot of time to prepare
-            pickle.dump(train_data, open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' +
+            pickle.dump(train_data, open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' + str(args['year']) + '_' +
                                          str(args['hist']) + '_' + str(args['pred_window']) + '_train.pkl','wb'))
-            pickle.dump(val_data, open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' +
+            pickle.dump(val_data, open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' + str(args['year']) + '_' +
                                          str(args['hist']) + '_' + str(args['pred_window']) + '_val.pkl','wb'))
-            pickle.dump(test_data, open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' +
+            pickle.dump(test_data, open('./data/backblaze/processed_data/' + str(args['drive_model']) + '_' + str(args['year']) + '_' +
                                          str(args['hist']) + '_' + str(args['pred_window']) + '_test.pkl','wb'))
 
         op_channels = 2
@@ -351,7 +353,8 @@ class balBatchGenerator(object):
         for label,ratio in label_ratio.items():
             self.label_ratio_batch[label] = int(np.floor(ratio*self.batch_size))
         diff = self.batch_size - sum(self.label_ratio_batch.values())
-        module_logger.info("Ratios: " + ",".join([str(x) for x in self.label_ratio_batch]))
+        module_logger.info("Ratios: " + ",".join([str(x) for x in self.label_ratio_batch.keys()]))
+        module_logger.info("Ratios: " + ",".join([str(x) for x in self.label_ratio_batch.values()]))
 
         i = 0
         while diff > 0:
@@ -359,7 +362,8 @@ class balBatchGenerator(object):
             self.label_ratio_batch[label] += 1
             diff -= 1
             i += 1
-        module_logger.info("Adjusted Ratios: " + ",".join([str(x) for x in self.label_ratio_batch]))
+        module_logger.info("Adjusted Ratios: " + ",".join([str(x) for x in self.label_ratio_batch.keys()]))
+        module_logger.info("Adjusted Ratios: " + ",".join([str(x) for x in self.label_ratio_batch.values()]))
 
         self.label_idx_data = {}
         self.label_counter = {}

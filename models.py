@@ -26,7 +26,7 @@ class oneDCNN(object):
         self.ip_channels = args['ip_channels']
         self.op_channels = args['op_channels']
         self.seq_len = args['seq_len']
-        self.mode = args['mode']
+        self.mode = args['mode'] == 'train'
         self.batch_size = args['batch_size']
         self.class_weights = args['weights']
         self.weight_reg = args['weight_reg']
@@ -36,41 +36,9 @@ class oneDCNN(object):
 
         self._build_model()
 
-        if self.mode == 'train':
+        if self.mode:
             self._add_train_nodes()
         self.summaries = tf.summary.merge_all()
-
-    def build_cnn_layer(self,prev_layer,kernel_size,stride,padding,scope_name):
-
-        with tf.variable_scope(scope_name):
-            kernel = tf.get_variable('conv_weight',shape=kernel_size,dtype=tf.float32,
-                                     initializer=tf.truncated_normal_initializer(0,0.001),
-                                     regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
-            conv_op = tf.nn.conv1d(prev_layer,kernel,stride,padding)
-            bias = tf.get_variable('conv_bias',shape=kernel_size[-1],dtype=tf.float32,
-                                   initializer=tf.constant_initializer(0.0))
-            nonlinear_op = tf.nn.relu(tf.nn.bias_add(conv_op,bias))
-            activation_summary(nonlinear_op)
-
-        return nonlinear_op
-
-    def build_cnn_pool_layer(self,prev_layer,kernel_size,stride,padding,pool_size,scope_name):
-
-        raise NotImplementedError
-
-    def build_full_layer(self,prev_layer, ip_size, op_size,scope_name):
-
-        # TODO: pass mean and std dev of initialization as parameters
-        with tf.variable_scope(scope_name):
-            layer_w = tf.get_variable('layer_w', [ip_size, op_size], dtype=tf.float32,
-                                      initializer=tf.truncated_normal_initializer(0,0.001),
-                                      regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
-            layer_b = tf.get_variable('layer_b', [op_size], dtype=tf.float32,
-                                      initializer= tf.constant_initializer(0.0))
-            local = tf.nn.relu(tf.matmul(prev_layer, layer_w) + layer_b)
-            activation_summary(local)
-
-        return local
 
     def _build_model(self):
 
@@ -87,7 +55,7 @@ class oneDCNN(object):
                 kernel_width, kernel_op_channel, stride, padding = values_list[i]
                 kernel_ip_channel = prev_layer.get_shape()[-1]
                 kernel_size = [kernel_width,kernel_ip_channel,kernel_op_channel]
-                prev_layer = self.build_cnn_layer(prev_layer,kernel_size,stride,padding,'conv_'+str(i))
+                prev_layer = conv_bn_layer(prev_layer,kernel_size,stride,padding,self.weight_reg,self.mode,'conv_'+str(i))
 
             elif key_list[i].split('_')[1] == 'full':
 
@@ -98,11 +66,11 @@ class oneDCNN(object):
                     prev_layer = tf.reshape(prev_layer,[-1,int(col*channel)])
                     ip_size = col*channel
                     op_size = values_list[i]
-                    prev_layer = self.build_full_layer(prev_layer,ip_size,op_size,'full_'+str(i))
+                    prev_layer = build_full_layer(prev_layer,ip_size,op_size,self.weight_reg,'full_'+str(i))
                 else:
                     op_size = values_list[i]
                     ip_size = prev_layer.get_shape()[-1]
-                    prev_layer = self.build_full_layer(prev_layer,ip_size,op_size,'full_'+str(i))
+                    prev_layer = build_full_layer(prev_layer,ip_size,op_size,self.weight_reg,'full_'+str(i))
 
             elif key_list[i].split('_')[1] == 'conv_pool':
 
@@ -110,7 +78,7 @@ class oneDCNN(object):
                 kernel_width, kernel_op_channel, stride, padding, pool_size = values_list[i]
                 kernel_ip_channel = prev_layer.get_shape()[-1]
                 kernel_size = [kernel_width,kernel_ip_channel,kernel_op_channel]
-                prev_layer = self.build_cnn_pool_layer(prev_layer,kernel_size,stride,padding,pool_size,'conv_pool_'+str(i))
+                prev_layer = build_cnn_pool_layer(prev_layer,kernel_size,stride,padding,pool_size,self.weight_reg,'conv_pool_'+str(i))
 
             else:
                 raise ValueError("layer specified has not been implemented")
@@ -123,7 +91,7 @@ class oneDCNN(object):
 
         # softmax output from final layer
         softmax_w = tf.get_variable('softmax_w',[np.prod(final_layer.get_shape()[1:]),self.op_channels],dtype=tf.float32,
-                                    initializer= tf.truncated_normal_initializer(0,0.001),
+                                    initializer= tf.contrib.layers.xavier_initialization,
                                     regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
         softmax_b = tf.get_variable('softmax_b',[self.op_channels],dtype=tf.float32)
         self.output = tf.matmul(final_layer,softmax_w) + softmax_b
@@ -135,7 +103,6 @@ class oneDCNN(object):
         self.input_layer_y = tf.placeholder(tf.float32,shape=(self.batch_size,self.op_channels),name='input_layer_y')
 
         # compute cross entropy loss
-        #cross_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.output,self.input_layer_y))
         cross_loss = weighted_cross_entropy(self.class_weights,self.output,self.input_layer_y)
         tf.summary.scalar('cross_entropy_loss',cross_loss)
 
@@ -188,7 +155,7 @@ class oneDMultiChannelCNN(object):
         self.ip_channels = args['ip_channels']
         self.op_channels = args['op_channels']
         self.seq_len = args['seq_len']
-        self.mode = args['mode']
+        self.mode = args['mode'] == 'train'
         self.batch_size = args['batch_size']
         self.class_weights = args['weights']
         self.ss1_len = args['sub_sample_len[0]']
@@ -201,42 +168,9 @@ class oneDMultiChannelCNN(object):
 
         self._build_model()
 
-        if self.mode == 'train':
+        if self.mode:
             self._add_train_nodes()
         self.summaries = tf.summary.merge_all()
-
-    def build_cnn_layer(self, prev_layer, kernel_size, stride, padding, scope_name):
-
-        with tf.variable_scope(scope_name):
-            kernel = tf.get_variable('conv_weight', shape=kernel_size, dtype=tf.float32,
-                                     initializer=tf.truncated_normal_initializer(0, 0.001),
-                                     regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
-            conv_op = tf.nn.conv1d(prev_layer, kernel, stride, padding)
-            bias = tf.get_variable('conv_bias', shape=kernel_size[-1], dtype=tf.float32,
-                                   initializer=tf.constant_initializer(0.0))
-            nonlinear_op = tf.nn.relu(tf.nn.bias_add(conv_op, bias))
-            activation_summary(nonlinear_op)
-
-        return nonlinear_op
-
-    def build_cnn_pool_layer(self, prev_layer, kernel_size, stride, padding, pool_size, scope_name):
-
-        raise NotImplementedError
-
-    def build_full_layer(self, prev_layer, ip_size, op_size, scope_name):
-
-        # TODO: pass mean and std dev of initialization as parameters
-        # TODO: pass regularization constanst as parameter
-        with tf.variable_scope(scope_name):
-            layer_w = tf.get_variable('layer_w', [ip_size, op_size], dtype=tf.float32,
-                                      initializer=tf.truncated_normal_initializer(0, 0.001),
-                                      regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
-            layer_b = tf.get_variable('layer_b', [op_size], dtype=tf.float32,
-                                      initializer=tf.constant_initializer(0.0))
-            local = tf.nn.relu(tf.matmul(prev_layer, layer_w) + layer_b)
-            activation_summary(local)
-
-        return local
 
     def _build_model(self):
 
@@ -256,13 +190,13 @@ class oneDMultiChannelCNN(object):
         kernel_width, kernel_op_channel, stride, padding = values_list[0]
         kernel_size = [kernel_width,self.ip_channels,kernel_op_channel]
 
-        org_conv_op = self.build_cnn_layer(org,kernel_size,stride,padding,'org_conv_op')
-        lp1_conv_op = self.build_cnn_layer(lp1, kernel_size, stride, padding, 'org_conv_lp1')
-        lp2_conv_op = self.build_cnn_layer(lp2, kernel_size, stride, padding, 'org_conv_lp2')
-        lp3_conv_op = self.build_cnn_layer(lp3, kernel_size, stride, padding, 'org_conv_lp3')
-        ss1_conv_op = self.build_cnn_layer(ss1, kernel_size, stride, padding, 'org_conv_ss1')
-        ss2_conv_op = self.build_cnn_layer(ss2, kernel_size, stride, padding, 'org_conv_ss2')
-        ss3_conv_op = self.build_cnn_layer(ss3, kernel_size, stride, padding, 'org_conv_ss3')
+        org_conv_op = conv_bn_layer(org,kernel_size,stride,padding,self.weight_reg,self.mode,'org_conv_op')
+        lp1_conv_op = conv_bn_layer(lp1, kernel_size, stride, padding,self.weight_reg,self.mode, 'org_conv_lp1')
+        lp2_conv_op = conv_bn_layer(lp2, kernel_size, stride, padding,self.weight_reg,self.mode, 'org_conv_lp2')
+        lp3_conv_op = conv_bn_layer(lp3, kernel_size, stride, padding,self.weight_reg,self.mode, 'org_conv_lp3')
+        ss1_conv_op = conv_bn_layer(ss1, kernel_size, stride, padding,self.weight_reg,self.mode, 'org_conv_ss1')
+        ss2_conv_op = conv_bn_layer(ss2, kernel_size, stride, padding,self.weight_reg,self.mode, 'org_conv_ss2')
+        ss3_conv_op = conv_bn_layer(ss3, kernel_size, stride, padding,self.weight_reg,self.mode, 'org_conv_ss3')
 
         concat_conv_layer = tf.concat(1,[org_conv_op,lp1_conv_op,lp2_conv_op,lp3_conv_op,ss1_conv_op,ss2_conv_op,ss3_conv_op])
 
@@ -277,7 +211,7 @@ class oneDMultiChannelCNN(object):
                 kernel_width, kernel_op_channel, stride, padding = values_list[i]
                 kernel_ip_channel = prev_layer.get_shape()[-1]
                 kernel_size = [kernel_width, kernel_ip_channel, kernel_op_channel]
-                prev_layer = self.build_cnn_layer(prev_layer, kernel_size, stride, padding, 'conv_' + str(i))
+                prev_layer = conv_bn_layer(prev_layer, kernel_size, stride, padding, self.weight_reg,self.mode, 'conv_' + str(i))
 
             elif key_list[i].split('_')[1] == 'full':
 
@@ -288,11 +222,11 @@ class oneDMultiChannelCNN(object):
                     prev_layer = tf.reshape(prev_layer, [-1, int(col * channel)])
                     ip_size = col * channel
                     op_size = key_list[i]
-                    prev_layer = self.build_full_layer(prev_layer, ip_size, op_size, 'full_' + str(i))
+                    prev_layer = build_full_layer(prev_layer, ip_size, op_size, self.weight_reg, 'full_' + str(i))
                 else:
                     op_size = values_list[i]
                     ip_size = prev_layer.get_shape()[-1]
-                    prev_layer = self.build_full_layer(prev_layer, ip_size, op_size, 'full_' + str(i))
+                    prev_layer = build_full_layer(prev_layer, ip_size, op_size, self.weight_reg, 'full_' + str(i))
 
             elif key_list[i].split('_')[1] == 'conv_pool':
 
@@ -300,7 +234,7 @@ class oneDMultiChannelCNN(object):
                 kernel_width, kernel_op_channel, stride, padding, pool_size = values_list[i]
                 kernel_ip_channel = prev_layer.get_shape()[-1]
                 kernel_size = [kernel_width, kernel_ip_channel, kernel_op_channel]
-                prev_layer = self.build_cnn_pool_layer(prev_layer, kernel_size, stride, padding, pool_size,
+                prev_layer = build_cnn_pool_layer(prev_layer, kernel_size, stride, padding, pool_size, self.weight_reg,
                                                        'conv_pool_' + str(i))
 
             else:
@@ -315,7 +249,7 @@ class oneDMultiChannelCNN(object):
         # softmax output from final layer
         softmax_w = tf.get_variable('softmax_w', [np.prod(final_layer.get_shape()[1:]), self.op_channels],
                                     dtype=tf.float32,
-                                    initializer=tf.truncated_normal_initializer(0, 0.001),
+                                    initializer=tf.contrib.layers.xavier_initialization,
                                     regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
         softmax_b = tf.get_variable('softmax_b', [self.op_channels], dtype=tf.float32)
         self.output = tf.matmul(final_layer, softmax_w) + softmax_b
@@ -327,7 +261,6 @@ class oneDMultiChannelCNN(object):
         self.input_layer_y = tf.placeholder(tf.float32, shape=(self.batch_size, self.op_channels), name='input_layer_y')
 
         # compute cross entropy loss
-        #cross_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.output, self.input_layer_y))
         cross_loss = weighted_cross_entropy(self.class_weights,self.output,self.input_layer_y)
         tf.summary.scalar('cross_entropy_loss', cross_loss)
 
@@ -358,111 +291,6 @@ class oneDMultiChannelCNN(object):
 
     def assign_lr(self, sess, new_value):
         sess.run(tf.assign(self.lrn_rate, new_value))
-
-
-class fullDNNNoHistory(object):
-
-    def __init__(self,args):
-        '''
-        Function for getting all the parameters
-
-        '''
-
-        self.ip_channels = args['ip_channels']
-        self.seq_len = args['seq_len']
-        self.num_layers = len(args['layer_sizes'])
-        self.op_channels = args['op_channels']
-        self.layer_sizes = args['layer_sizes']
-        self.mode = args['mode']
-        self.init_learn_rate = args['lr_rate']
-        self.batch_size = args['batch_size']
-        self.class_weights = args['weights']
-        self.weight_reg = args['weight_reg']
-        self.cost_reg = args['cost_reg']
-
-    def build_graph(self):
-
-        self._build_model()
-
-        if self.mode == 'train':
-            self._add_train_nodes()
-        self.summaries = tf.summary.merge_all()
-
-    def build_single_layer(self,prev_layer, ip_size, op_size):
-
-        # TODO: pass mean and std dev of initialization as parameters
-        # Build the first layer of weights, build the next ones iteratively
-        layer_w = tf.get_variable('layer_w', [ip_size, op_size], dtype=tf.float32,
-                                  initializer=tf.truncated_normal_initializer(0,0.001),
-                                  regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
-        layer_b = tf.get_variable('layer_b', [op_size], dtype=tf.float32,
-                                  initializer= tf.truncated_normal_initializer(0,0.001))
-        local = tf.nn.relu(tf.matmul(prev_layer, layer_w) + layer_b)
-        activation_summary(local)
-
-        return local
-
-    def _build_model(self):
-        '''
-        Initialize and define the model to be use for computation
-        Returns:
-
-        '''
-
-        self.input_layer_x = tf.placeholder(dtype=tf.float32,shape=[self.batch_size,self.seq_len,self.ip_channels],name="input_layer_x")
-        input_layer = tf.squeeze(tf.reshape(self.input_layer_x,[self.batch_size,self.seq_len*self.ip_channels,1]),squeeze_dims=[2])
-
-        with tf.variable_scope("layer_0"):
-            prev_layer = self.build_single_layer(input_layer,self.ip_channels*self.seq_len,self.layer_sizes[0])
-
-        # Iterate over layers size with proper scope to define the higher layers
-        for i in range(1,self.num_layers):
-
-            curr_layer_size = self.layer_sizes[i]
-            prev_layer_size = self.layer_sizes[i-1]
-
-            with tf.variable_scope("layer_"+str(i)):
-                prev_layer = self.build_single_layer(prev_layer,prev_layer_size,curr_layer_size)
-
-        softmax_w = tf.get_variable('softmax_w',[self.layer_sizes[-1],self.op_channels],dtype=tf.float32, regularizer=tf.contrib.layers.l2_regularizer(self.weight_reg))
-        softmax_b = tf.get_variable('softmax_b',[self.op_channels],dtype=tf.float32)
-        self.output = tf.matmul(prev_layer,softmax_w) + softmax_b
-        self.output_prob = tf.nn.softmax(self.output)
-        activation_summary(self.output_prob)
-
-
-    def _add_train_nodes(self):
-        '''
-        Define the loss layer, learning rate and optimizer
-        Returns:
-
-        '''
-        self.input_layer_y = tf.placeholder(dtype=tf.float32,shape=[self.batch_size,self.op_channels],name="input_layer_y")
-
-        # gather loss from regularization variables
-        reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-
-        self.cost = weighted_cross_entropy(self.class_weights,self.output,self.input_layer_y) + self.cost_regtf.add_n(reg_losses)
-        tf.summary.scalar("loss",self.cost)
-
-        self.lrn_rate = tf.Variable(self.init_learn_rate,trainable=False,dtype=tf.float32)
-        tf.summary.scalar('learning_rate',self.lrn_rate)
-
-        trainable_variables = tf.trainable_variables()
-        optimizer = tf.train.AdamOptimizer(self.lrn_rate)
-        grads_vars = optimizer.compute_gradients(self.cost,trainable_variables)
-
-        # histogram_summaries for weights and gradients
-        for var in tf.trainable_variables():
-            tf.summary.histogram(var.op.name, var)
-        for grad, var in grads_vars:
-            if grad is not None:
-                tf.summary.histogram(var.op.name+'/gradient',grad)
-
-        self.train_op = optimizer.apply_gradients(grads_vars)
-
-    def assign_lr(self, session, new_lr):
-        session.run(tf.assign(self.lrn_rate, new_lr))
 
 
 # TODO: add batch re-norm and dropout

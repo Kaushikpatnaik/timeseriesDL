@@ -11,14 +11,13 @@ from sklearn.grid_search import ParameterGrid
 import logging
 import os
 
-#TODO: Add a early-stopping mechanism with weight averaging as optional
 def main():
 
     today = time.strftime("%d_%m_%Y %H_%M_%S")
     logdir = './logs/'+today
     logfile = 'logfile'
     summary_flag = False
-    early_stop_args = {'monitor': 'f1', 'min_delta': 0.2, 'patience': 6, 'mode': 'max'}
+    early_stop_args = {'monitor': 'f1', 'min_delta': 0.002, 'patience': 10, 'mode': 'max'}
 
     if not os.path.exists(logdir):
         os.makedirs(logdir)
@@ -75,27 +74,27 @@ def main():
                 model_param['max_batches_val'] = batch_val.get_num_batches()
 
                 # train with early stopping and return best model's pr and roc auc
-                roc_auc, pr_auc = train(itr_model, model_param, batch_train, batch_val, logdir, ix, summary_flag)
+                roc_auc, pr_auc = train(itr_model, model_param, batch_train, batch_val, logdir, ix, early_stop_args, summary_flag)
                 f.write(str(roc_auc) + '\t' + str(pr_auc))
                 f.write('\n')
 
                 # test performance
-                roc_auc, pr_auc = test(itr_model, model_param, batch_val, "val", logdir, ix, summary_flag)
+                #roc_auc, pr_auc = test(itr_model, model_param, batch_val, "val", logdir, ix, summary_flag)
 
     f.close()
 
 
 if __name__ == "__main__":
-    dnn_args = {'layer_sizes': [[64, 32], [64, 32, 16], [128, 64, 32]], 'num_epochs': [30],
+    dnn_args = {'layer_sizes': [[64, 32], [64, 32, 16], [128, 64, 32]], 'num_epochs': [50],
                 'lr_rate': [0.001, 0.0001], 'lr_decay': [0.9], 'weight_reg': [0.01, 0.001],
                 'cost_reg': [0.01, 0.001]}
 
     lstm_args = {'cell': 'lstm', 'num_layers': [1, 2, 3], 'hidden_units': [16, 32, 64],
-                 'num_epochs': [30], 'lr_rate': [0.001, 0.0001], 'lr_decay': 0.97,
+                 'num_epochs': [50], 'lr_rate': [0.001, 0.0001], 'lr_decay': 0.97,
                  'grad_clip': [3.0, 5.0]}
 
     lstmtr_args = {'cell': ['lstm'], 'num_layers': [1, 2, 3], 'hidden_units': [16, 32, 64],
-                   'num_epochs': [30], 'lr_rate': [0.001, 0.0001], 'lr_decay': 0.97,
+                   'num_epochs': [50], 'lr_rate': [0.001, 0.0001], 'lr_decay': 0.97,
                    'grad_clip': [3.0, 5.0]}
 
     # TODO: Add more layers
@@ -106,12 +105,16 @@ if __name__ == "__main__":
                 'lr_decay': [0.9], 'layer_params': [layer_params_opt_3], 'weight_reg': [0.01, 0.001],
                 'cost_reg': [0.01, 0.001]}
 
+    '''
+    pred_window here controls the number of days assigned as positive/failure
+    hist controls the number of days being used for prediction
+    '''
     list_label_ratio = [{0: 0.9, 1: 0.1}, {0: 0.7, 1: 0.3}, {0: 0.5, 1: 0.5}]
     list_label_weight = [[0.2, 1], [0.5, 1]]
     data_args = {
         'backblaze': {'batch_size': [64], 'split_ratio': [[0.8, 0.1, 0.1]], 'label_ratio': list_label_ratio,
                       'label_weights': list_label_weight, 'drive_model': ['ST3000DM001','ST4000DM000'], \
-                      'max_batches_train': [5000], 'hist': [4, 7], 'pred_window': [3]}}
+                      'max_batches_train': [5000], 'hist': [4,7], 'pred_window': [3], 'year': ['2015']}}
 
     model_args = {'lstm': lstm_args, 'cnn': cnn_args, 'lstrm_lr': lstmtr_args, 'dnn': dnn_args}
 

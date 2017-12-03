@@ -68,7 +68,7 @@ class EarlyStopping(object):
             self.wait += 1
             return 'continue'
 
-def run_train_epoch(session, model, data, max_batches,sess_summary):
+def run_train_epoch(session, model, data, max_batches,sess_summary, epoch_num):
     '''
     Run the model under given session for max_batches based on args
     '''
@@ -95,10 +95,10 @@ def run_train_epoch(session, model, data, max_batches,sess_summary):
 
     end_time = time.time()
 
-    module_logger.info("Runtime of one epoch: ")
-    module_logger.info(end_time-start_time)
-    module_logger.info("Average cost per epoch: ")
-    module_logger.info(epoch_cost/max_batches)
+    #module_logger.info("Runtime of one epoch: ")
+    #module_logger.info(end_time-start_time)
+    avg_cost = epoch_cost/max_batches
+    module_logger.info("Epcoh: %d, Average cost per epoch: %f",epoch_num,avg_cost)
 
     return softmax_op, y_onehot, cost_trajectory
 
@@ -113,7 +113,8 @@ def run_val_test_epoch(session, model, data, max_batches,sess_summary):
 
     for i in range(max_batches):
         x, y = data.next()
-        summary, output_prob = session.run([model.summaries,model.output_prob], feed_dict={model.input_layer_x: x})
+        summary, output_prob = session.run([model.summaries,model.output_prob], feed_dict={model.input_layer_x: x,
+                                                                                           model.input_layer_y: y})
         if sess_summary:
             sess_summary.add_summary(summary,i)
         softmax_op[i*len(y):(i+1)*len(y),:] = output_prob
@@ -121,8 +122,8 @@ def run_val_test_epoch(session, model, data, max_batches,sess_summary):
 
     end_time = time.time()
 
-    module_logger.info("Runtime of one epoch: ")
-    module_logger.info(end_time-start_time)
+    #module_logger.info("Runtime of one epoch: ")
+    #module_logger.info(end_time-start_time)
 
     return softmax_op, y_onehot
 
@@ -137,21 +138,20 @@ def train(model_opt, model_args, batch_train, batch_val, logdir, ix, early_stop_
     gconfig.gpu_options.per_process_gpu_memory_fraction = 0.5
     with tf.Graph().as_default(), tf.Session(config=gconfig) as session:
 
+        if model_opt == 'cnn':
+            model = oneDCNN
+        elif model_opt == 'lstm':
+            model = LSTM
+        elif model_opt == 'lstm_tr':
+            model = LSTMTargetReplication
+        else:
+            raise ValueError("model specified has not been implemented")
+
         with tf.variable_scope("model", reuse=None):
-
             model_args['mode'] = 'train'
-            if model_opt == 'dnn':
-                train_model = fullDNNNoHistory(model_args)
-            elif model_opt == 'cnn':
-                train_model = oneDCNN(model_args)
-            elif model_opt == 'lstm':
-                train_model = LSTM(model_args)
-            elif model_opt == 'lstm_tr':
-                train_model = LSTMTargetReplication(model_args)
-            else:
-                raise ValueError("model specified has not been implemented")
-
+            train_model = model(model_args)
             train_model.build_graph()
+
             tf.initialize_all_variables().run()
 
             train_writer = None
@@ -162,22 +162,18 @@ def train(model_opt, model_args, batch_train, batch_val, logdir, ix, early_stop_
             saver = tf.train.Saver()
             cost_over_batches = []
 
-            best_y_val_prob, best_y_val_onehot = None
+            best_y_val_prob, best_y_val_onehot = None, None
             for i in range(model_args['num_epochs']):
 
                 lr_decay = model_args['lr_decay'] ** max(i - 2.0, 0.0)
                 train_model.assign_lr(session, model_args['lr_rate'] * lr_decay)
 
                 # run a complete epoch and return appropriate variables
-                y_prob, y_onehot, y_cost = run_train_epoch(session, train_model, batch_train, model_args['max_batches_train'], train_writer)
-
-                #module_logger.info("For model_"+str(ix)+" Confusion metrics post epoch "+str(i)+" :")
-                #module_logger.info(compConfusion(y_prob,y_onehot))
-
+                y_prob, y_onehot, y_cost = run_train_epoch(session, train_model, batch_train, model_args['max_batches_train'], train_writer, i)
                 cost_over_batches += y_cost
 
                 # For every val_check epoch, check the validation scores and see if they have improved from the previous best
-                y_val_prob, y_val_onehot = run_val_test_epoch(session, train_model, batch_val, model_args['max_batches_val'],val_writer)
+                y_val_prob, y_val_onehot = run_val_test_epoch(session, train_model, batch_val, model_args['max_batches_val'], val_writer)
                 curr_pr, curr_roc, curr_f1, curr_acc = compMetrics(y_val_prob,y_val_onehot)
 
                 if early_stop_args['monitor']  == 'pr':
@@ -198,6 +194,7 @@ def train(model_opt, model_args, batch_train, batch_val, logdir, ix, early_stop_
                 if opt == 'terminate_model':
                     break
 
+
             if summ_flag:
                 train_writer.close()
 
@@ -216,9 +213,7 @@ def test(model_opt, model_args, batch_val, mode, logdir, ix, summ_flag):
         with tf.variable_scope("model",reuse=None):
 
             model_args['mode'] = mode
-            if model_opt == 'dnn':
-                val_model = fullDNNNoHistory(model_args)
-            elif model_opt == 'cnn':
+            if model_opt == 'cnn':
                 val_model = oneDCNN(model_args)
             elif model_opt == 'lstm':
                 val_model = LSTM(model_args)
